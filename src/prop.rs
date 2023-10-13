@@ -1,5 +1,6 @@
 use super::formula::{Formula, Tree, Zipper};
-use super::symbol::{Atom, Match, Parsable, ParseError, Symbolic};
+pub use super::symbol::Atom;
+use super::symbol::{Match, Parsable, ParseError, Symbolic};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -23,12 +24,6 @@ impl Display for PropUnary {
 impl Symbolic for PropUnary {}
 
 impl Match for PropUnary {
-    fn str_matches(&self) -> &[&str] {
-        match self {
-            PropUnary::Not => &["¬", "!", "~", "not"],
-        }
-    }
-
     fn get_match(s: &str) -> Option<Self> {
         match s {
             "¬" | "!" | "~" | "not" => Some(Self::Not),
@@ -39,6 +34,9 @@ impl Match for PropUnary {
 
 impl Parsable for PropUnary {}
 
+/// Deriving `PartialOrd` and `Ord` on this enum means that, by ordering the
+/// fields in increasing order of precedence, no other work has to be done
+/// to make sure the relative precedence of operators is understood.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
 #[pyclass]
 pub enum PropBinary {
@@ -63,15 +61,6 @@ impl Display for PropBinary {
 impl Symbolic for PropBinary {}
 
 impl Match for PropBinary {
-    fn str_matches(&self) -> &[&str] {
-        match self {
-            PropBinary::Iff => &["<->", "↔", "iff"],
-            PropBinary::Implies => &["->", "→", "implies"],
-            PropBinary::Or => &["\\/", "∨", "or"],
-            PropBinary::And => &["/\\", "∧", "and"],
-        }
-    }
-
     fn get_match(s: &str) -> Option<Self> {
         match s {
             "<->" | "↔" | "iff" => Some(Self::Iff),
@@ -85,29 +74,37 @@ impl Match for PropBinary {
 
 impl Parsable for PropBinary {}
 
+/// Alias for the propositional instantiation of `Formula`.
 pub type PropFormula = Formula<PropBinary, PropUnary, Atom>;
 
+/// The Python-bound instance of formula for propositional formulas.
+/// This language includes the negation operator and operators for
+/// or, and, implication and the biconditional.
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug)]
 #[pyclass]
-pub struct Proposition(Formula<PropBinary, PropUnary, Atom>);
+pub struct Proposition {
+    formula: Formula<PropBinary, PropUnary, Atom>,
+}
 
 impl Deref for Proposition {
     type Target = PropFormula;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.formula
     }
 }
 
 impl DerefMut for Proposition {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.formula
     }
 }
 
 impl From<PropFormula> for Proposition {
-    fn from(value: PropFormula) -> Self {
-        Proposition(value)
+    fn from(mut value: PropFormula) -> Self {
+        let mut count: usize = 0;
+        value.inorder_traverse_mut(&mut |_f| count += 1);
+        Proposition { formula: value }
     }
 }
 
@@ -117,12 +114,15 @@ impl IntoPy<PyObject> for &mut Proposition {
     }
 }
 
+/// These are wrappers around the generic `Formula` methods which allow
+/// you to use the builder pattern in Python. Of course you can also use
+/// such a pattern with these methods in Rust also!
 #[pymethods]
 impl Proposition {
     #[new]
-    fn new(atom: Option<Atom>, s: Option<&str>) -> PyResult<Self> {
+    pub fn new(atom: Option<Atom>, s: Option<&str>) -> PyResult<Self> {
         if let Some(val) = s {
-            Self::read(val)
+            Self::from_str(val)
         } else if let Some(a) = atom {
             Ok(Formula {
                 tree: Tree::Atom(a),
@@ -134,79 +134,80 @@ impl Proposition {
         }
     }
 
-    fn merge(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.full_combine(bin, *second);
+    pub fn full_merge(&mut self, bin: PropBinary, second: Self) -> &mut Self {
+        self.full_combine(bin, second.formula);
         self
     }
 
-    fn place(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.combine(bin, (*second).tree);
+    pub fn full_left_merge(&mut self, bin: PropBinary, second: Self) -> &mut Self {
+        self.full_left_combine(bin, second.formula);
         self
     }
 
-    fn left_merge(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.full_left_combine(bin, *second);
+    pub fn place(&mut self, bin: PropBinary, second: Self) -> &mut Self {
+        self.combine(bin, second.formula.tree);
         self
     }
 
-    fn left_place(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.left_combine(bin, (*second).tree);
+    pub fn left_place(&mut self, bin: PropBinary, second: Self) -> &mut Self {
+        self.left_combine(bin, second.formula.tree);
         self
     }
 
-    fn go_up(&mut self) -> &mut Self {
+    pub fn go_up(&mut self) -> &mut Self {
         self.up_zip();
         self
     }
-
-    fn go_right(&mut self) -> &mut Self {
+    pub fn go_right(&mut self) -> &mut Self {
         self.right_unzip();
         self
     }
 
-    fn go_left(&mut self) -> &mut Self {
+    pub fn go_left(&mut self) -> &mut Self {
         self.left_unzip();
         self
     }
 
-    fn go_down(&mut self) -> &mut Self {
+    pub fn go_down(&mut self) -> &mut Self {
         self.down_unzip();
         self
     }
 
-    fn turn_right(&mut self) -> &mut Self {
+    pub fn turn_right(&mut self) -> &mut Self {
         self.rotate_right();
         self
     }
 
-    fn turn_left(&mut self) -> &mut Self {
+    pub fn turn_left(&mut self) -> &mut Self {
         self.rotate_left();
         self
     }
 
-    fn instance(&mut self, atoms: HashMap<Atom, Self>) -> &mut Self {
-        let trees: HashMap<Atom, Tree<PropBinary, PropUnary, Atom>> =
-            atoms.iter().map(|(&k, &v)| (k, v.tree)).collect();
+    pub fn instance(&mut self, atoms: HashMap<Atom, Self>) -> &mut Self {
+        let trees: HashMap<Atom, Tree<PropBinary, PropUnary, Atom>> = atoms
+            .into_iter()
+            .map(|(k, v)| (k, v.formula.tree))
+            .collect();
         self.inorder_traverse_mut(&mut |f: &mut Formula<_, _, _>| f.instantiate(&trees));
         self
     }
 
-    fn consume_unary(&mut self, unary: PropUnary) -> &mut Self {
+    pub fn consume_unary(&mut self, unary: PropUnary) -> &mut Self {
+        self.full_unify(unary);
+        self
+    }
+
+    pub fn append_unary(&mut self, unary: PropUnary) -> &mut Self {
         self.unify(unary);
         self
     }
 
-    fn append_unary(&mut self, unary: PropUnary) -> &mut Self {
-        self.append(unary);
-        self
-    }
-
-    fn __str__(&self) -> String {
+    pub fn __str__(&self) -> String {
         self.to_string()
     }
 
     #[staticmethod]
-    fn read(s: &str) -> PyResult<Self> {
+    pub fn from_str(s: &str) -> PyResult<Self> {
         Ok(PropFormula::from_str(s)?.into())
     }
 }

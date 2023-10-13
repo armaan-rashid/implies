@@ -81,9 +81,9 @@ where
     pub fn from_zipper(z: &Zipper<B, U, A>) -> Option<Self> {
         match z {
             Zipper::Top => None,
-            Zipper::Right { bin, sub, zip } => Some(Symbol::Binary(*bin)),
-            Zipper::Left { bin, sub, zip } => Some(Symbol::Binary(*bin)),
-            Zipper::Up { un, zip } => Some(Symbol::Unary(*un)),
+            Zipper::Right { bin, .. } => Some(Symbol::Binary(*bin)),
+            Zipper::Left { bin, .. } => Some(Symbol::Binary(*bin)),
+            Zipper::Up { un, .. } => Some(Symbol::Unary(*un)),
         }
     }
     /// Treating a sequence of symbols as an inorder-traversal representation of
@@ -92,7 +92,7 @@ where
     /// an efficient way of validating parentheses.
     fn validate_sequence(&self, seq: &[Self]) -> Result<&Self, ParseError> {
         match self {
-            Symbol::Binary(b) => match seq.last() {
+            Symbol::Binary(_) => match seq.last() {
                 None | Some(Symbol::Left) => Err(ParseError::IncompleteBinary),
                 _ => Ok(self),
             },
@@ -112,7 +112,7 @@ where
     /// That means that a formula wrapped in parentheses returns an error.
     pub fn lowest_precedence(symbols: &[Self]) -> Result<(usize, Self), ParseError> {
         let mut symbol: Option<(usize, Self)> = None;
-        let mut depth: usize = 0;
+        let mut depth: isize = 0;
         for (i, sym) in symbols.iter().enumerate() {
             match sym {
                 Symbol::Left => depth += 1,
@@ -145,16 +145,6 @@ where
     U: Parsable,
     A: Parsable,
 {
-    fn str_matches(&self) -> &[&'static str] {
-        match self {
-            Symbol::Binary(e) => e.str_matches(),
-            Symbol::Unary(e) => e.str_matches(),
-            Symbol::Atom(e) => e.str_matches(),
-            Symbol::Left => &["("][..],
-            Symbol::Right => &[")"][..],
-        }
-    }
-
     fn get_match(s: &str) -> Option<Self> {
         if s == "(" {
             Some(Symbol::Left)
@@ -173,26 +163,17 @@ where
 }
 
 pub trait Match: Sized {
-    /// A trait that, when implemented for a type T, implements two methods that are like
-    /// inverses of each other: given an element of type T outputs a list of strings that
-    /// 'match' the element and given a string outputs a matching element of T if applicable.
-    /// Hopefully it is obvious, but two properties must be ensured by implementors, detailed in
-    /// the methods themselves. Also, whitespace and strings starting with whitespace
-    /// can never be a match, as it is always ignored by the parser.
-
-    /// First, .str_matches(&self) must satisfy the following quasi-injective property:
-    /// for any two distinct elements of the implementing type T, let's call them a and b,
-    /// the union of `a.str_matches()` and `b.str_matches()` must be the empty slice.
-    fn str_matches(&self) -> &[&'static str];
-
-    /// Second, `Match::get_match(s)` returns Some(x) **if and only if** s is in `x.str_matches()`.
+    /// A trait that, when implemented for a type T, implements a method that, given a string,
+    /// outputs a matching element of T if applicable.
+    /// Also, whitespace and strings starting with whitespace
+    /// can never be a match, as starting whitespace is always ignored by the parser.
     fn get_match(s: &str) -> Option<Self>;
 
     /// Match a prefix of a given string against the string matches. Uses the conventional
     /// max-munch principle: if the string is `"orange"` and `"o"` and `"or"` are both matches,
     /// the method will return `"or"`.
     fn match_prefix(s: &str) -> Option<(usize, Self)> {
-        s.trim_start().char_indices().rev().find_map(|(i, c)| {
+        s.trim_start().char_indices().rev().find_map(|(i, _)| {
             if let Some(val) = Self::get_match(&s[..=i]) {
                 Some((i, val))
             } else {
@@ -313,7 +294,7 @@ where
     }
 }
 
-static ATOMS: [&str; 52] = [
+static ATOMS: [&'static str; 52] = [
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s",
     "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
     "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -327,7 +308,7 @@ static ATOMS: [&str; 52] = [
 /// as the corresponding numbers.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default)]
 #[pyclass]
-pub struct Atom(usize);
+pub struct Atom(pub usize);
 
 impl Deref for Atom {
     type Target = usize;
@@ -350,14 +331,6 @@ impl Display for Atom {
 impl Symbolic for Atom {}
 
 impl Match for Atom {
-    fn str_matches(&self) -> &[&'static str] {
-        if let Some(v) = ATOMS.get(**self) {
-            &[v]
-        } else {
-            &[&self.to_string()]
-        }
-    }
-
     fn get_match(s: &str) -> Option<Self> {
         if let Some(i) = ATOMS.iter().position(|val| &s == val) {
             Some(Atom(i))

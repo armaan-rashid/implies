@@ -108,15 +108,8 @@ impl From<PropFormula> for Proposition {
     }
 }
 
-impl IntoPy<PyObject> for &mut Proposition {
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        self.into_py(py)
-    }
-}
-
 /// These are wrappers around the generic `Formula` methods which allow
-/// you to use the builder pattern in Python. Of course you can also use
-/// such a pattern with these methods in Rust also!
+/// you to use them in Python.
 #[pymethods]
 impl Proposition {
     #[new]
@@ -134,72 +127,59 @@ impl Proposition {
         }
     }
 
-    pub fn full_merge(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.full_combine(bin, second.formula);
-        self
+    pub fn full_combine(&mut self, bin: PropBinary, second: Self) {
+        self.deref_mut().full_combine(bin, second.formula);
     }
 
-    pub fn full_left_merge(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.full_left_combine(bin, second.formula);
-        self
+    pub fn full_left_combine(&mut self, bin: PropBinary, second: Self) {
+        self.deref_mut().full_left_combine(bin, second.formula);
     }
 
-    pub fn place(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.combine(bin, second.formula.tree);
-        self
+    pub fn combine(&mut self, bin: PropBinary, second: Self) {
+        self.deref_mut().combine(bin, second.formula.tree);
     }
 
-    pub fn left_place(&mut self, bin: PropBinary, second: Self) -> &mut Self {
-        self.left_combine(bin, second.formula.tree);
-        self
+    pub fn left_combine(&mut self, bin: PropBinary, second: Self) {
+        self.deref_mut().left_combine(bin, second.formula.tree);
     }
 
-    pub fn go_up(&mut self) -> &mut Self {
+    pub fn go_up(&mut self) {
         self.up_zip();
-        self
     }
-    pub fn go_right(&mut self) -> &mut Self {
+    pub fn go_right(&mut self) {
         self.right_unzip();
-        self
     }
 
-    pub fn go_left(&mut self) -> &mut Self {
+    pub fn go_left(&mut self) {
         self.left_unzip();
-        self
     }
 
-    pub fn go_down(&mut self) -> &mut Self {
+    pub fn go_down(&mut self) {
         self.down_unzip();
-        self
     }
 
-    pub fn turn_right(&mut self) -> &mut Self {
+    pub fn turn_right(&mut self) {
         self.rotate_right();
-        self
     }
 
-    pub fn turn_left(&mut self) -> &mut Self {
+    pub fn turn_left(&mut self) {
         self.rotate_left();
-        self
     }
 
-    pub fn instance(&mut self, atoms: HashMap<Atom, Self>) -> &mut Self {
+    pub fn instance(&mut self, atoms: HashMap<Atom, Self>) {
         let trees: HashMap<Atom, Tree<PropBinary, PropUnary, Atom>> = atoms
             .into_iter()
             .map(|(k, v)| (k, v.formula.tree))
             .collect();
         self.inorder_traverse_mut(&mut |f: &mut Formula<_, _, _>| f.instantiate(&trees));
-        self
     }
 
-    pub fn consume_unary(&mut self, unary: PropUnary) -> &mut Self {
+    pub fn consume_unary(&mut self, unary: PropUnary) {
         self.full_unify(unary);
-        self
     }
 
-    pub fn append_unary(&mut self, unary: PropUnary) -> &mut Self {
+    pub fn append_unary(&mut self, unary: PropUnary) {
         self.unify(unary);
-        self
     }
 
     pub fn __str__(&self) -> String {

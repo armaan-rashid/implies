@@ -5,6 +5,12 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::hash::Hash;
 
+/// Classic tree implementation, but the enum variants
+/// for Binary, Unary and Atom ensure that ill-formed
+/// formulas can never be constructed. Uses [`Box`]
+/// as internal pointer because we modify formulae through
+/// a zipper. Within the formula struct, represents the
+/// untraversed/'unzipped' parts of the formula.
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum Tree<B, U, A>
 where
@@ -50,17 +56,22 @@ where
     }
 }
 
-/// A basic binary/unary tree type for representing generic logical formulae.
-/// Within the formula struct, represents the untraversed/'unzipped' parts of the
-/// formula. Only the most basic manipulations (adding unary operators and combining
-/// formulas) are provided; more complex manipulations are provided by the Zipper
-/// which is much more ergonomic for expressing in-place mutation.
+/// Only the most basic manipulations (adding unary operators and combining
+/// formulas) are provided; more complex manipulations are provided by the [`Formula`]
+/// which is much more ergonomic for expressing in-place mutation using its
+/// internal [`Zipper`]
+/// [`Zipper`]: Zipper
+/// [`Formula`]: Formula
 impl<B, U, A> Tree<B, U, A>
 where
     B: Symbolic,
     U: Symbolic,
     A: Symbolic,
 {
+    pub fn new(atom: A) -> Self {
+        Tree::Atom(atom)
+    }
+
     pub fn is_atomic(&self) -> bool {
         if let Tree::Atom(_) = self {
             true
@@ -115,30 +126,6 @@ where
         }
     }
 
-    /// If for whatever reason you have a `Box<Tree>` and want to avoid
-    /// the extra deallocation/allocation of unboxing and boxing by passing
-    /// to `.combine()` these methods help.
-    pub fn left_insert(&mut self, bin: B, boxed_tree: Box<Tree<B, U, A>>) {
-        let old = std::mem::take(self);
-        *self = Tree::Binary {
-            conn: bin,
-            left: boxed_tree,
-            right: Box::new(old),
-        }
-    }
-
-    /// If for whatever reason you have a `Box<Tree>` and want to avoid
-    /// the extra deallocation/allocation of unboxing and boxing by passing
-    /// to `.combine()` these methods help.
-    pub fn insert(&mut self, bin: B, boxed_tree: Box<Tree<B, U, A>>) {
-        let old = std::mem::take(self);
-        *self = Tree::Binary {
-            conn: bin,
-            left: Box::new(old),
-            right: boxed_tree,
-        }
-    }
-
     /// Print the customary inorder traversal of a tree formula into an outparameter.
     pub fn read_inorder(&self, repr: &mut String) {
         match self {
@@ -173,35 +160,21 @@ where
         }
     }
 
-    /// Recursively build a formula from a slice of symbols.
+    /// Recursively build a tree from a slice of symbols.
     pub fn build_tree(syms: &[Symbol<B, U, A>]) -> Result<Self, ParseError> {
-        match (syms.first(), syms.last()) {
-            (Some(s1), Some(s2)) => {
-                if let (Symbol::Left, Symbol::Right) = (s1, s2) {
-                    Self::build_tree(&syms[1..syms.len() - 1])
-                } else {
-                    match Symbol::lowest_precedence(syms)? {
-                        (i, Symbol::Binary(b)) => Ok(Tree::Binary {
-                            conn: b,
-                            left: Box::new(Self::build_tree(&syms[..i])?),
-                            right: Box::new(Self::build_tree(&syms[i + 1..])?),
-                        }),
-                        (i, Symbol::Unary(u)) => {
-                            if i != 1 {
-                                Err(ParseError::DisconnectedClauses)
-                            } else {
-                                Ok(Tree::Unary {
-                                    conn: u,
-                                    next: Box::new(Self::build_tree(&syms[i..])?),
-                                })
-                            }
-                        }
-                        (_, Symbol::Atom(a)) => Ok(Tree::Atom(a)),
-                        _ => Err(ParseError::DisconnectedClauses),
-                    }
-                }
-            }
-            _ => Err(ParseError::EmptyFormula),
+        let symbols = Symbol::strip_parentheses(syms)?;
+        match Symbol::main_operator(symbols)? {
+            (i, Symbol::Binary(b)) => Ok(Tree::Binary {
+                conn: b,
+                left: Box::new(Self::build_tree(&symbols[..i])?),
+                right: Box::new(Self::build_tree(&symbols[i + 1..])?),
+            }),
+            (i, Symbol::Unary(u)) => Ok(Tree::Unary {
+                conn: u,
+                next: Box::new(Self::build_tree(&symbols[i + 1..])?),
+            }),
+            (_, Symbol::Atom(a)) => Ok(Tree::Atom(a)),
+            _ => unreachable!(), // main_operator never returns a parenthesis
         }
     }
 }
@@ -209,9 +182,9 @@ where
 /// The thread or 'zipper' that actually tracks where you currently
 /// are in a given tree formula. The recursively nested zippers themselves
 /// contain the node values that trace out a partial walk from the head
-/// of the tree toward a leaf node, i.e. an atom. Zippers contain trees themselves if and only if they make
-/// a 'choice' during the walk, e.g. they traverse one of two binary subtrees,
-/// to retain the choice not made.
+/// of the tree toward a leaf node, i.e. an atom. Zippers contain trees themselves
+/// if and only if they make a 'choice' during the walk, e.g. they traverse
+/// one of two binary subtrees, to retain the choice not made.
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug, Default)]
 pub enum Zipper<B, U, A>
 where
@@ -300,13 +273,10 @@ impl<B: Symbolic, U: Symbolic, A: Symbolic> Zipper<B, U, A> {
     }
 }
 
-/// The primary generic struct for logical formulas that
-/// implement both unary and binary operators.
-/// The struct is generic over the type of binary
-/// operators `B`, unary operators `U`, and the atoms `A`, and
-/// assumes all three are very cheap (e.g. fieldless enums, integers)
-/// and therefore implement Copy. It's possible this requirement will
-/// be relaxed in future versions for the atoms 'A', in case there's
+/// The primary generic struct for logical formulas that implement both unary and binary operators.
+/// The struct is generic over the type of binary operators `B`, unary operators `U`, and the atoms `A`,
+/// and assumes all three are very cheap (e.g. fieldless enums, integers) and therefore implement Copy.
+/// It's possible this requirement will be relaxed in future versions for the atoms 'A', in case there's
 /// a need for very complex atoms (i.e. arbitrarily large relations).
 ///
 /// This is a [zipper](https://www.st.cs.uni-saarland.de/edu/seminare/2005/advanced-fp/docs/huet-zipper.pdf)
@@ -314,18 +284,38 @@ impl<B: Symbolic, U: Symbolic, A: Symbolic> Zipper<B, U, A> {
 /// just a tree, but a tree *and a particular location in that tree*, represented by the `zipper`; please read
 /// the source material for more if you want to understand how this works. At the basic level you may assume that
 /// `.*_unzip`, methods go 'down' the tree while `.*_zip` methods go up. If the formula is fully zipped (i.e. by calling
-/// `.full_zip()`) the tree is in fact the whole formula, with `Zipper::Top` stored as a sentinel zipper.
+/// [`top_zip`]) the tree is in fact the whole formula, with `Zipper::Top` stored as a sentinel zipper.
 ///
-/// The implementation therefore always
-/// operates/mutates the formula at its current location in the tree, so if you want to operate on the very 'top'
-/// of the formula you must call `.full_zip()` first. The only exception to this is methods that start with `.full_`,
-/// which you may assume call `.full_zip()` before performing mutations.
+/// The implementation therefore always operates/mutates the formula at its current location in the tree, so if you want
+/// to operate on the very 'top' of the formula you must call [`top_zip`] first. The only exception to this is methods that
+/// start with `.top_`, which you may assume call [`top_zip`] before performing mutations.
 ///
-/// Finally, you may notice this `impl` does not implement the builder pattern of taking and returning `self`
-/// both because the pattern is ugly but mainly because methods must operate on `&mut self` in order to be
-/// bound for Python. For builder-style method chaining use the wonderful `cascade!{}` macro. The Python wrappers
-/// do use a chainable pattern (taking and receiving `&mut self`) and can of course be used from the Rust API,
-/// but it's not technically a builder.
+/// The mutating methods therefore change different properties about the formula but leave the 'location' of the formula,
+/// i.e. the current `.tree`, untouched or as untouched as possible, so that these mutations can be done repeatedly as part
+/// of, for example, an [`inorder_traverse_mut`]. It can be hard to understand this abstractly so it's best to read the
+/// documentation for concrete transforming methods like [`combine`] or [`distribute_right`] for a clearer view.
+///
+/// This implementation does *not* use the builder pattern, both out of dislike but also because this would be impossible
+/// to PyBind if methods took self or require a duplicate implementation.
+///
+/// For builder-style method chaining use the wonderful [`cascade!`](https://docs.rs/cascade/latest/cascade/) macro.
+/// The Python wrappers do use a chainable pattern (taking and receiving `&mut self`) and can of course be used
+/// from the Rust API, but the Python API is really designed for Pythonic use and this API for Rust.
+///
+/// Finally, the API is designed for safety in the sense that transformations that are applied are only applied
+/// if they're valid at the current location in the formula and don't do anything otherwise! This is an opinionated
+/// design decision because this crate is designed for situations that demand lots of rapid transformation in specifically
+/// the circumstance when you want to apply a transformation if possible or not do anything, e.g. when converting a formula
+/// to conjunctive normal form. Returning [`Result<T, E>'] in this situation would inappropriately stop such fast transformation
+/// chains and require a lot of branching in code. Nonetheless a trait may be added and implemented for this type which
+/// reimplements the methods to allow one to immediately discern if a formula has changed after a method call because there's
+/// no signal something has either happened or failed to (e.g. as would be signaled by returning a Result<T,E> type).
+///
+/// [`Result<T, E>`]: std::result::Result
+/// [`top_zip`]: Formula::top_zip
+/// [`combine`]: Formula::combine
+/// [`distribute_right`]: Formula::distribute_right
+/// [`inorder_traverse_mut`]: Formula::inorder_traverse_mut
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug, Default)]
 pub struct Formula<B, U, A>
 where
@@ -351,211 +341,206 @@ where
         }
     }
 
+    /// Traverse the current zipper one step, reconstructing the tree,
+    /// whether you're in a binary tree (i.e. a left or right zipper)
+    /// or a unary one (up zipper); doesn't do anything if you're at `Zipper::Top`.
     pub fn zip(&mut self) {
         match &self.zipper {
             Zipper::Top => {}
-            Zipper::Right { .. } => self.right_zip(),
-            Zipper::Left { .. } => self.left_zip(),
-            Zipper::Up { .. } => self.up_zip(),
+            Zipper::Right { .. } => self.zip_right(),
+            Zipper::Left { .. } => self.zip_left(),
+            Zipper::Up { .. } => self.zip_up(),
         }
     }
 
-    pub fn up_zip(&mut self) {
-        if let Formula {
-            ref mut tree,
-            zipper: Zipper::Up { un, ref mut zip },
-        } = self
-        {
-            tree.unify(*un);
-            self.zipper = std::mem::take((*zip).as_mut())
-        }
-    }
-
-    pub fn right_zip(&mut self) {
-        if let Formula {
-            ref mut tree,
-            zipper:
-                Zipper::Right {
-                    bin,
-                    ref mut sub,
-                    ref mut zip,
-                },
-        } = self
-        {
-            tree.combine(*bin, std::mem::take(sub));
+    /// In the subtree of a unary tree, go UP and eat the unary operator back into the tree. That is,
+    /// ```text
+    ///   zipper: (U, Zipper)       zipper: (*Zipper)
+    ///                                
+    ///            ^        =>         ^
+    ///            |                   |
+    ///                                
+    ///           tree              tree: U
+    ///                                   |
+    ///                                old_tree
+    /// ```
+    pub fn zip_up(&mut self) {
+        if let Zipper::Up { un, zip } = &mut self.zipper {
+            self.tree.unify(*un);
             self.zipper = std::mem::take((*zip).as_mut());
         }
     }
 
-    pub fn left_zip(&mut self) {
-        if let Formula {
-            ref mut tree,
-            zipper:
-                Zipper::Left {
-                    bin,
-                    ref mut sub,
-                    ref mut zip,
-                },
-        } = self
-        {
-            tree.left_combine(*bin, std::mem::take(sub));
+    /// In the left subtree of a binary tree, go "right" and eat the binary operator and right subtree!
+    /// You're basically recombining them, like
+    /// ```text
+    ///         zipper: (B, RTree, Zipper)        zipper: (*Zipper)
+    ///          /                                      |
+    ///         /                            =>         |
+    ///       tree: LTree                          tree: B
+    ///                                                /   \
+    ///                                             LTree  RTree
+    /// ```
+    pub fn zip_right(&mut self) {
+        if let Zipper::Right { sub, bin, zip } = &mut self.zipper {
+            self.tree.combine(*bin, std::mem::take(sub));
             self.zipper = std::mem::take((*zip).as_mut());
         }
     }
 
-    /// Traverse to the right subtree of a binary formula.
-    pub fn right_unzip(&mut self) {
-        if let Formula {
-            tree:
-                Tree::Binary {
-                    conn,
-                    ref mut left,
-                    ref mut right,
-                },
-            ref mut zipper,
-        } = self
-        {
-            let for_zip = std::mem::take((*left).as_mut());
-            let new_tree = std::mem::take((*right).as_mut());
-            let new_zip: Zipper<B, U, A> = Zipper::Left {
-                bin: *conn,
-                sub: for_zip,
-                zip: Box::new(std::mem::take(zipper)),
-            };
-            *zipper = new_zip;
-            self.tree = new_tree;
+    /// Just like [`zip_right`] except you're in the right subtree of a
+    /// binary tree. The destination state is the exact same.
+    /// [`zip_right`]: Formula::zip_right
+    pub fn zip_left(&mut self) {
+        if let Zipper::Left { sub, bin, zip } = &mut self.zipper {
+            self.tree.left_combine(*bin, std::mem::take(sub));
+            self.zipper = std::mem::take((*zip).as_mut());
         }
     }
 
-    /// Traverse to the left subtree of a binary formula.
-    pub fn left_unzip(&mut self) {
-        if let Formula {
-            tree:
-                Tree::Binary {
-                    conn,
-                    ref mut left,
-                    ref mut right,
-                },
-            ref mut zipper,
-        } = self
-        {
-            let for_zip = std::mem::take((*right).as_mut());
-            let new_tree = std::mem::take((*left).as_mut());
-            let new_zip: Zipper<B, U, A> = Zipper::Left {
+    /// The inverse of [`zip_left`]: decompose a binary tree and
+    /// traverse to the right subtree of a binary formula.
+    ///
+    /// [`zip_left`]: Formula::zip_left
+    pub fn unzip_right(&mut self) {
+        if let Tree::Binary { conn, left, right } = &mut self.tree {
+            self.zipper = Zipper::Left {
                 bin: *conn,
-                sub: for_zip,
-                zip: Box::new(std::mem::take(zipper)),
+                sub: std::mem::take((*left).as_mut()),
+                zip: Box::new(std::mem::take(&mut self.zipper)),
             };
-            *zipper = new_zip;
-            self.tree = new_tree;
+            self.tree = std::mem::take((*right).as_mut());
+        }
+    }
+
+    /// The inverse of [`zip_right`]: decompose a binary tree and travel
+    /// to the left subtree of a binary formula.
+    /// [`zip_right`]: Formula::zip_right
+    pub fn unzip_left(&mut self) {
+        if let Tree::Binary { conn, left, right } = &mut self.tree {
+            self.zipper = Zipper::Right {
+                bin: *conn,
+                sub: std::mem::take((*right).as_mut()),
+                zip: Box::new(std::mem::take(&mut self.zipper)),
+            };
+            self.tree = std::mem::take((*left).as_mut());
         }
     }
 
     /// Traverse to the formula contained in a unary tree.
-    pub fn down_unzip(&mut self) {
-        if let Formula {
-            tree: Tree::Unary { conn, ref mut next },
-            ref mut zipper,
-        } = self
-        {
-            let new_zip = Zipper::Up {
+    /// The inverse of [`zip_up`].
+    /// [`zip_up`]: Formula::zip_up
+    pub fn unzip_down(&mut self) {
+        if let Tree::Unary { conn, next } = &mut self.tree {
+            self.zipper = Zipper::Up {
                 un: *conn,
-                zip: Box::new(std::mem::take(zipper)),
+                zip: Box::new(std::mem::take(&mut self.zipper)),
             };
-            *zipper = new_zip;
             self.tree = std::mem::take((*next).as_mut());
         }
     }
 
     /// Unzip the formula, i.e. return to the top node.
-    pub fn full_zip(&mut self) {
+    /// After this, `self.tree` contains the whole formula.
+    pub fn top_zip(&mut self) {
         while !self.zipper.is_top() {
             self.zip();
         }
     }
 
+    /// Connects to a new formula WITHOUT
+    /// unzipping, which is why this takes in a tree.
+    /// Whatever the current `.tree` is will become
+    /// the left subtree of a binary tree, where `new_tree`
+    /// is the right subtree and they're connected by `bin`.
+    /// This is a very zipper-style impl which might be counter
+    /// intuitive, and perhaps better illustrated with some
+    /// poor ASCII art:
+    ///
+    /// ```text
+    ///          zipper                 zipper: Zipper::Right(bin, new_tree, old_zipper)
+    ///                                
+    ///            ^        =>            /
+    ///            |                    /
+    ///                                
+    ///           tree               tree
+    /// ```
+    pub fn combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
+        self.zipper = Zipper::Right {
+            bin,
+            sub: new_tree,
+            zip: Box::new(std::mem::take(&mut self.zipper)),
+        };
+    }
+
+    /// Exactly the same as [`combine`] but the new subtree is inserted as
+    /// a left subtree, so you're now in the right subtree of a binary tree.
+    /// And therefore you end up with a [`Zipper::Left`].
+    /// [`Zipper::Left`]: Zipper::Left
+    pub fn left_combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
+        self.zipper = Zipper::Left {
+            bin,
+            sub: new_tree,
+            zip: Box::new(std::mem::take(&mut self.zipper)),
+        };
+    }
+
     /// Combine two formulas with a binary connective.
-    /// "Eats" the second formula; clone when calling this
-    /// function if you want to keep the second around.
-    /// This function and `.left_combine()` obviously
-    /// require unzipping, so more efficient to call them
-    /// if you're already unzipped.
-    pub fn full_combine(&mut self, bin: B, mut formula: Self) {
-        formula.full_zip();
-        self.full_zip();
+    /// But unzip first.
+    pub fn top_combine(&mut self, bin: B, mut formula: Self) {
+        formula.top_zip();
+        self.top_zip();
         self.combine(bin, formula.tree);
     }
 
-    /// Combine two formulas with a binary connective.
-    /// The second formula is inserted as the LEFT subtree.
-    /// "Eats" the second formula; clone when calling this
-    /// function if you want to keep the second around.
-    pub fn full_left_combine(&mut self, bin: B, mut formula: Self) {
-        formula.full_zip();
-        self.full_zip();
+    /// [`top_combine`] but on the left side.
+    /// [`top_combine`]: Formula::top_combine
+    pub fn top_left_combine(&mut self, bin: B, mut formula: Self) {
+        formula.top_zip();
+        self.top_zip();
         self.left_combine(bin, formula.tree)
-    }
-
-    /// Connects to a new formula WITHOUT
-    /// unzipping, which is why this takes in a tree. This
-    /// effectively inserts `formula` where
-    /// you currently are in `self` into a right subtree.
-    pub fn combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
-        self.tree.combine(bin, new_tree)
-    }
-
-    pub fn left_combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
-        self.tree.left_combine(bin, new_tree)
-    }
-
-    /// The same as `.combine()` methods but for `Box<Tree>`.
-    pub fn insert(&mut self, bin: B, boxed_tree: Box<Tree<B, U, A>>) {
-        self.tree.insert(bin, boxed_tree)
-    }
-
-    pub fn left_insert(&mut self, bin: B, boxed_tree: Box<Tree<B, U, A>>) {
-        self.tree.left_insert(bin, boxed_tree)
     }
 
     /// Insert a unary operator in the formula's current position.
     pub fn unify(&mut self, un: U) {
-        self.tree.unify(un)
+        self.zipper = Zipper::Up {
+            un,
+            zip: Box::new(std::mem::take(&mut self.zipper)),
+        };
     }
 
     /// Insert a unary operator for the whole formula.
-    pub fn full_unify(&mut self, un: U) {
+    pub fn top_unify(&mut self, un: U) {
         cascade! {
             self;
-            ..full_zip();
-            ..unify(un);
-            ()
+            ..top_zip();
+            ..unify(un)
         }
     }
 
     /// Inorder traversal starting at the current context.
-    /// If you want the whole formula simply unzip first.
+    /// If you want the whole formula simply [`top_zip`] first.
     /// Takes in a closure which can mutate the formula in
     /// place somehow.
+    /// [`top_zip`]: Formula::top_zip
     pub fn inorder_traverse_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
         match &self.tree {
             Tree::Binary { .. } => cascade! {
                 self;
-                ..left_unzip();
+                ..unzip_left();
                 ..inorder_traverse_mut(func);
-                ..up_zip();
+                ..zip();    // a general zip to account for any potential transformations
                 ..apply_mut(func);
-                ..right_unzip();
+                ..unzip_right();
                 ..inorder_traverse_mut(func);
-                ..up_zip();
-                ()
+                ..zip()    // a general zip to account for any potential transformations
             },
             Tree::Unary { .. } => cascade! {
                 self;
                 ..apply_mut(func);
-                ..down_unzip();
+                ..unzip_down();
                 ..inorder_traverse_mut(func);
-                ..up_zip();
-                ()
+                ..zip()    // a general zip to account for any potential transformations
             },
             Tree::Atom(_) => self.apply_mut(func),
         }
@@ -563,26 +548,34 @@ where
 
     /// Preorder traversal starting at the current context.
     /// Also takes in a closure that can mutate the formula.
+    /// This is a much more dangerous traversal strategy to call
+    /// with a transformation method like [`rotate_right`] compared
+    /// to [`inorder_traverse_mut`]; the latter will travel to the leaves
+    /// of a formula and then perform transforms going back *up* the zipper,
+    /// whereas this method will apply transformations immediately as it
+    /// visits each node, having potentially weird consequences if there
+    /// are in place mutations going on with formulae.
+    /// [`rotate_right`]: Formula::rotate_right
+    /// [`inorder_traverse_mut`]: Formula::inorder_traverse_mut
     pub fn preorder_traverse_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
+        self.apply_mut(func);
         match &self.tree {
             Tree::Binary { .. } => cascade! {
                 self;
                 ..apply_mut(func);
-                ..left_unzip();
+                ..unzip_left();
                 ..preorder_traverse_mut(func);
-                ..up_zip();
-                ..right_unzip();
+                ..zip();    // a general zip to account for any potential transformations
+                ..unzip_right();
                 ..preorder_traverse_mut(func);
-                ..up_zip();
-                ()
+                ..zip()    // a general zip to account for any potential transformations
             },
             Tree::Unary { .. } => cascade! {
                 self;
                 ..apply_mut(func);
-                ..down_unzip();
+                ..unzip_down();
                 ..preorder_traverse_mut(func);
-                ..up_zip();
-                ()
+                ..zip()    // a general zip to account for any potential transformations
             },
             Tree::Atom(_) => self.apply_mut(func),
         }
@@ -605,7 +598,7 @@ where
     /// If it applies in the current context, 'rotate' a tree formula,
     /// i.e. change precedence between two binary operators,
     /// to the left. As an example,
-    ///
+    /// ```text
     ///     →                                       
     ///   /   \\
     /// A       ∧          
@@ -619,7 +612,7 @@ where
     ///         →       C   
     ///       /   \
     ///     A       B
-    ///
+    /// ```
     /// is an example of a left rotation.
     /// Rotations are always performed assuming the current zipper holds the
     /// lower-precedence `B`, i.e. the one higher up in the tree. In the example
@@ -628,13 +621,18 @@ where
     /// position after rotation, with // denoting the new active zipper.
     pub fn rotate_left(&mut self) {
         if let Formula {
-            tree: Tree::Binary { conn, left, right },
-            zipper: Zipper::Left { bin, sub, .. },
+            tree:
+                Tree::Binary {
+                    conn,
+                    left: b,
+                    right: c,
+                },
+            zipper: Zipper::Left { bin, sub: a, .. },
         } = self
         {
             std::mem::swap(conn, bin);
-            std::mem::swap(left.as_mut(), right.as_mut());
-            std::mem::swap(sub, right.as_mut());
+            std::mem::swap(b.as_mut(), c.as_mut());
+            std::mem::swap(a, b.as_mut()); // b now holds the c tree, so really swapping A, C
         }
         // You now need a right zipper, so flip it!
         self.flip()
@@ -643,7 +641,7 @@ where
     /// If it applies in the current context, 'rotate' a tree formula,
     /// i.e. change precedence between two binary operators,
     /// to the right. As an example,
-    ///
+    /// ```text
     ///          ∧                               
     ///       //   \
     ///      →      C   
@@ -657,18 +655,23 @@ where
     ///                 A       ∧          
     ///                       /   \
     ///                     B       C
-    ///
+    /// ```
     /// is an example of a right rotation. More detail available in the
     /// documentation of `.rotate_left()`.
     pub fn rotate_right(&mut self) {
         if let Formula {
-            tree: Tree::Binary { conn, left, right },
-            zipper: Zipper::Right { bin, sub, .. },
+            tree:
+                Tree::Binary {
+                    conn,
+                    left: a,
+                    right: b,
+                },
+            zipper: Zipper::Right { bin, sub: c, .. },
         } = self
         {
             std::mem::swap(conn, bin);
-            std::mem::swap(left.as_mut(), right.as_mut());
-            std::mem::swap(sub, left.as_mut());
+            std::mem::swap(a.as_mut(), b.as_mut());
+            std::mem::swap(c, b.as_mut()); // b now holds the a tree, so really swapping A, C
         }
         // You now need a left zipper, so flip it!
         self.flip()
@@ -677,7 +680,7 @@ where
     /// 'Distribute' a binary operator over the right (binary) subtree.
     /// Often used in, for example, creating the conjunctive normal forms
     /// of formulae. Easiest to see by example:
-    ///
+    /// ```text
     ///         ∧
     ///      /     \\
     ///    p        ∨
@@ -690,7 +693,7 @@ where
     ///                            ∧               ∧
     ///                        /       \       /       \
     ///                       p         q     p         r
-    ///
+    /// ```
     /// The dummy formula corresponding to `p` above gets cloned.
     /// Just like with the rotation methods, the above method occurs
     /// starting from the higher-precedence operator (lower in the subtree)
@@ -703,16 +706,18 @@ where
         cascade! {
             let curr = self;
             ..rotate_left();
-            let (clone, bin) = if let &Tree::Binary {ref left, conn,.. } = &curr.tree {(left.clone(), conn)} else {unreachable!()};
-            ..right_zip();
-            ..right_unzip();
-            ..left_insert(bin, clone);
-            ()
+            // while you're here, steal another copy of the formula to distribute
+            let (clone, bin) = if let &Tree::Binary {ref left, conn,.. } = &curr.tree {(left.as_ref().clone(), conn)}
+                               else {unreachable!()};
+            ..zip_right();
+            ..unzip_right();
+            ..left_combine(bin, clone)
         }
     }
 
     /// Distribute a binary operator over the left subtree (corresponding to a right
-    /// rotation). See `.distribute_right()` for more.
+    /// rotation). See [`distribute_right`] for more.
+    /// [`distribute_right`]: Formula::distribute_right
     pub fn distribute_left(&mut self) {
         if !self.zipper.is_right() || !self.tree.is_binary() {
             return;
@@ -720,18 +725,20 @@ where
         cascade! {
             let curr = self;
             ..rotate_right();
-            let (clone, bin) = if let &Tree::Binary {ref right, conn,.. } = &curr.tree {(right.clone(), conn)} else {unreachable!()};
-            ..left_zip();
-            ..left_unzip();
-            ..left_insert(bin, clone);
-            ()
+            // while you're here, steal another copy of the formula to distribute
+            let (clone, bin) = if let &Tree::Binary {ref right, conn,.. } = &curr.tree {(right.as_ref().clone(), conn)}
+                               else {unreachable!()};
+            ..zip_left();
+            ..unzip_left();
+            ..combine(bin, clone)
         }
     }
 
-    /// Very similar to the `.rotate_*` methods but with unary operators
+    /// Very similar to the [`.rotate_*`] methods but with unary operators
     /// swapping precedence with binary ones instead. Because of this the
-    /// `.lower_*` methods don't reverse each other unlike the `.rotate_` methods.
+    /// `.lower_*` methods don't reverse each other unlike the [`.rotate_`] methods.
     /// This method unifies the right subformula.
+    /// [`.rotate_*`]: Formula::rotate_right
     pub fn lower_right(&mut self) {
         if let Formula {
             tree: Tree::Binary { right, .. },
@@ -743,7 +750,8 @@ where
         }
     }
 
-    /// Same as `.lower_right()` but unifies the left subformula.
+    /// Same as [`.lower_right()`] but unifies the left subformula.
+    /// [`.lower_right()`]: Formula::lower_right
     pub fn lower_left(&mut self) {
         if let Formula {
             tree: Tree::Binary { left, .. },
@@ -757,30 +765,49 @@ where
 
     /// Distribute a unary operator over a binary operator. Optionally
     /// pass in a new binary operator to root the formula after distribution.
-    pub fn distribute_unary(&mut self, new_bin: Option<B>) {
-        self.lower_left();
+    /// Basically like executing [`lower_left`] and [`lower_right`]
+    /// at the same time, and optionally swapping the root of the binary tree.
+    /// If you're unfamiliar with logic, this method exists because in numerous
+    /// languages a binary operator will have a 'dual' operator that it swaps
+    /// with when a unary operator is distributed over the two operands.
+    /// [`lower_left`]: Formula::lower_left
+    /// [`lower_right`]: Formula::lower_right
+    pub fn distribute_down(&mut self, new_bin: Option<B>) {
         if let Formula {
-            tree:
-                Tree::Binary {
-                    conn: bin,
-                    left,
-                    right,
-                },
-            ..
+            tree: Tree::Binary { conn, left, right },
+            zipper: Zipper::Up { un, zip },
         } = self
         {
-            if let &Tree::Unary { conn: un, .. } = left.as_ref() {
-                right.unify(un);
-                if let Some(mut b) = new_bin {
-                    std::mem::swap(&mut b, bin)
-                }
+            left.unify(*un);
+            right.unify(*un);
+            if let Some(mut b) = new_bin {
+                std::mem::swap(&mut b, conn)
             }
+            self.zipper = *std::mem::take(zip);
         }
     }
 
-    /// Instantiate an atom in the formula (as usual, starting where you currently are)
+    /// Swap two unary operators, optionally changing the one that's been
+    /// swapped up. This exists because oftentimes unary operators have
+    /// a 'dual' operator which they change to when another unary operator
+    /// changes precedence with them.
+    pub fn push_down(&mut self, new_un: Option<U>) {
+        if let Formula {
+            tree: Tree::Unary { conn, .. },
+            zipper: Zipper::Up { un, .. },
+        } = self
+        {
+            if let Some(mut u) = new_un {
+                std::mem::swap(&mut u, conn)
+            }
+            std::mem::swap(conn, un)
+        }
+    }
+
+    /// Instantiate an *atom* in the formula (as usual, starting where you currently are)
     /// with another tree subformula. If you want to do this over a whole formula,
-    /// just call this inside `inorder_traverse_mut()`
+    /// just call this inside [`inorder_traverse_mut()`].
+    /// [`inorder_traverse_mut`]: Formula::inorder_traverse_mut
     pub fn instantiate(&mut self, formulas: &HashMap<A, Tree<B, U, A>>) {
         if let Tree::Atom(a) = self.tree {
             if formulas.contains_key(&a) {
@@ -797,11 +824,11 @@ where
         loop {
             match context {
                 Zipper::Top => break,
-                Zipper::Right { bin, sub, zip } => written += &(bin.to_string() + &sub.to_string()),
-                Zipper::Left { bin, sub, zip } => {
+                Zipper::Right { bin, sub, .. } => written += &(bin.to_string() + &sub.to_string()),
+                Zipper::Left { bin, sub, .. } => {
                     written = sub.to_string() + &bin.to_string() + &written
                 }
-                Zipper::Up { un, zip } => written = un.to_string() + &written,
+                Zipper::Up { un, .. } => written = un.to_string() + &written,
             }
             context = context.peek_up();
         }
@@ -823,12 +850,9 @@ where
 impl<B: Parsable, U: Parsable, A: Parsable> Formula<B, U, A> {
     /// As expected, read a formula from a string. Return error if the string is malformed.
     pub fn from_str(value: &str) -> Result<Self, ParseError> {
-        match *ParsedSymbols::from(value) {
-            Ok(ref syms) => Ok(Formula {
-                tree: Tree::build_tree(&syms[..])?,
-                zipper: Zipper::Top,
-            }),
-            Err(e) => Err(e),
-        }
+        Ok(Formula {
+            tree: Tree::build_tree(&ParsedSymbols::from(value).0?[..])?,
+            zipper: Zipper::Top,
+        })
     }
 }

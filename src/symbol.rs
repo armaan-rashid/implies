@@ -86,31 +86,43 @@ where
             Zipper::Up { un, .. } => Some(Symbol::Unary(*un)),
         }
     }
-    /// Treating a sequence of symbols as an inorder-traversal representation of
-    /// a formula tree, see if the current symbol comes at an appropriate place
-    /// in the sequence. Unfortunately this method doesn't currently enjoy
-    /// an efficient way of validating parentheses.
-    fn validate_sequence(&self, seq: &[Self]) -> Result<&Self, ParseError> {
-        match self {
-            Symbol::Binary(_) => match seq.last() {
-                None | Some(Symbol::Left) => Err(ParseError::IncompleteBinary),
-                _ => Ok(self),
-            },
-            Symbol::Unary(_) => match seq.last() {
-                Some(Symbol::Right) | Some(Symbol::Atom(_)) => Err(ParseError::DisconnectedClauses),
-                _ => Ok(self),
-            },
-            Symbol::Atom(_) => match seq.last() {
-                Some(Symbol::Atom(_)) | Some(Symbol::Right) => Err(ParseError::DisconnectedClauses),
-                _ => Ok(self),
-            },
-            Symbol::Left | Symbol::Right => Ok(self),
+
+    /// A utility for stripping outer parentheses from a slice of symbols if applicable.
+    /// This also catches unbalanced parentheses in a slice.
+    pub fn strip_parentheses(syms: &[Self]) -> Result<&[Self], ParseError> {
+        if syms.is_empty() {
+            return Ok(syms);
+        }
+        let mut outer: usize = 0;
+        while let (Symbol::Left, Symbol::Right) = (syms[outer], syms[syms.len() - outer - 1]) {
+            outer += 1;
+        }
+        let (mut left, mut right, mut start) = (0 as usize, 0 as usize, outer);
+        for s in &syms[outer..syms.len() - outer] {
+            if let Symbol::Left = s {
+                left += 1
+            } else if let Symbol::Right = s {
+                right += 1
+            }
+            if right > left + outer {
+                break; // unbalanced!
+            } else if right > left && start > 0 {
+                start -= 1 // now, a left paren is "for" the right paren
+            }
+        }
+        if left != right {
+            Err(ParseError::UnbalancedParentheses)
+        } else {
+            Ok(&syms[start..syms.len() - start])
         }
     }
 
-    /// In a slice of symbols, find the lowest precedence operator that's not in parentheses.
-    /// That means that a formula wrapped in parentheses returns an error.
-    pub fn lowest_precedence(symbols: &[Self]) -> Result<(usize, Self), ParseError> {
+    /// In a slice of logical symbols, find the lowest precedence operator, i.e. the main
+    /// operator that's not in parentheses. Also basically validates the slice of symbols.
+    /// Parentheses are treated as black boxes, so if the whole formula is wrapped in parentheses
+    /// it may be valid but this method will return an error! [`strip_parentheses`] first.
+    /// [`strip_parentheses`]: Symbol::strip_parentheses
+    pub fn main_operator(symbols: &[Self]) -> Result<(usize, Self), ParseError> {
         let mut symbol: Option<(usize, Self)> = None;
         let mut depth: isize = 0;
         for (i, sym) in symbols.iter().enumerate() {
@@ -118,23 +130,24 @@ where
                 Symbol::Left => depth += 1,
                 Symbol::Right => depth -= 1,
                 _ => {
-                    if let Some((i, s)) = symbol {
-                        if s > *sym {
-                            symbol = Some((i, *sym))
-                        }
-                    } else {
+                    if depth == 0 && (symbol.is_none() || sym < &symbol.unwrap().1) {
                         symbol = Some((i, *sym))
                     }
                 }
             }
-            if depth < 0 {
-                return Err(ParseError::UnbalancedParentheses);
-            }
         }
-        if let Some(s) = symbol {
-            Ok(s)
-        } else {
-            Err(ParseError::EmptyFormula)
+        match symbol {
+            Some((_, Symbol::Binary(_))) | Some((0, Symbol::Unary(_))) => Ok(symbol.unwrap()),
+            Some((i, Symbol::Unary(_))) => Err(ParseError::UnaryLeft(symbols[i - 1].to_string())),
+            Some((i, Symbol::Atom(a))) => {
+                if symbols.len() != 1 {
+                    Err(ParseError::NotAtomic(symbols[1].to_string()))
+                } else {
+                    Ok((i, Symbol::Atom(a)))
+                }
+            }
+            None => Err(ParseError::EmptyFormula),
+            _ => unreachable!(),
         }
     }
 }
@@ -173,45 +186,48 @@ pub trait Match: Sized {
     /// max-munch principle: if the string is `"orange"` and `"o"` and `"or"` are both matches,
     /// the method will return `"or"`.
     fn match_prefix(s: &str) -> Option<(usize, Self)> {
-        s.trim_start().char_indices().rev().find_map(|(i, _)| {
-            if let Some(val) = Self::get_match(&s[..=i]) {
-                Some((i, val))
-            } else {
-                None
-            }
+        // the ugliness of calculating the width is only because
+        // the char rounding APIs are still in nightly
+        let mut last_char: usize = s.len();
+        s.char_indices().rev().find_map(|(i, _)| {
+            let char_width = last_char - i;
+            last_char = i;
+            Some((
+                last_char + char_width,
+                Self::get_match(&s[..last_char + char_width].trim_start())?,
+            ))
         })
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ParseError {
-    InvalidChar(char),
+    InvalidStr(String),
     UnbalancedParentheses,
-    IncompleteBinary,
-    DisconnectedClauses,
+    NotAtomic(String),
+    UnaryLeft(String),
     EmptyFormula,
 }
+
+impl std::error::Error for ParseError {}
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::InvalidChar(c) => {
-                write!(f, "{} does not correspond to a valid symbol.", c)
+            ParseError::InvalidStr(s) => {
+                write!(f, "{} does not correspond to a valid symbol.", s)
             }
             ParseError::UnbalancedParentheses => {
-                write!(
-                    f,
-                    "The given string does not contain valid balanced parentheses."
-                )
+                write!(f, "The string does not contain valid balanced parentheses.")
             }
-            ParseError::IncompleteBinary => {
-                write!(f, "A binary operator does not have two operands e.g. has a left parenthesis as an operand.")
+            ParseError::NotAtomic(s) => {
+                write!(f, "The symbol {} is next to what should be a lone atom.", s)
             }
-            ParseError::DisconnectedClauses => {
-                write!(f, "A unary operator, atom, or empty space cannot connect two atomic clauses (i.e. either a parenthesized clause or an atom).")
+            ParseError::UnaryLeft(s) => {
+                write!(f, "Some {} precedes a unary operator that shouldn't.", s)
             }
             ParseError::EmptyFormula => {
-                write!(f, "Empty formula is not valid.")
+                write!(f, "The empty formula is not valid. This error often occurs if a binary and/or unary operator are not given proper operands.")
             }
         }
     }
@@ -266,28 +282,14 @@ where
     A: Parsable,
 {
     fn from(value: &str) -> Self {
-        let (mut left, mut right): (usize, usize) = (0, 0);
         let mut start: usize = 0;
         let mut syms: Vec<Symbol<B, U, A>> = Vec::new();
-        while let Some((i, sym)) = Symbol::match_prefix(&value[start..]) {
-            if let Err(e) = sym.validate_sequence(&syms[..]) {
-                return ParsedSymbols(Err(e));
-            }
-            if let Symbol::Left = sym {
-                left += 1
-            } else if let Symbol::Right = sym {
-                right += 1
-            }
-            if right >= left {
-                return ParsedSymbols(Err(ParseError::UnbalancedParentheses));
-            }
+        while let Some((width, sym)) = Symbol::match_prefix(&value[start..]) {
             syms.push(sym);
-            start += i;
+            start += width;
         }
-        if start != value.len() {
-            ParsedSymbols(Err(ParseError::InvalidChar(
-                value[start..].chars().next().unwrap_or('\0'),
-            )))
+        if !value[start..].trim_start().is_empty() {
+            ParsedSymbols(Err(ParseError::InvalidStr(value[start..].to_string())))
         } else {
             ParsedSymbols(Ok(syms))
         }

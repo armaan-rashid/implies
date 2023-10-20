@@ -101,15 +101,13 @@ impl DerefMut for Proposition {
 }
 
 impl From<PropFormula> for Proposition {
-    fn from(mut value: PropFormula) -> Self {
-        let mut count: usize = 0;
-        value.inorder_traverse_mut(&mut |_f| count += 1);
+    fn from(value: PropFormula) -> Self {
         Proposition { formula: value }
     }
 }
 
 /// These are wrappers around the generic `Formula` methods which allow
-/// you to use them in Python.
+/// you to use them in Python. Should probably macro this at some point!
 #[pymethods]
 impl Proposition {
     #[new]
@@ -127,12 +125,12 @@ impl Proposition {
         }
     }
 
-    pub fn full_combine(&mut self, bin: PropBinary, second: Self) {
-        self.deref_mut().full_combine(bin, second.formula);
+    pub fn top_combine(&mut self, bin: PropBinary, second: Self) {
+        self.deref_mut().top_combine(bin, second.formula);
     }
 
-    pub fn full_left_combine(&mut self, bin: PropBinary, second: Self) {
-        self.deref_mut().full_left_combine(bin, second.formula);
+    pub fn top_left_combine(&mut self, bin: PropBinary, second: Self) {
+        self.deref_mut().top_left_combine(bin, second.formula);
     }
 
     pub fn combine(&mut self, bin: PropBinary, second: Self) {
@@ -143,29 +141,6 @@ impl Proposition {
         self.deref_mut().left_combine(bin, second.formula.tree);
     }
 
-    pub fn go_up(&mut self) {
-        self.up_zip();
-    }
-    pub fn go_right(&mut self) {
-        self.right_unzip();
-    }
-
-    pub fn go_left(&mut self) {
-        self.left_unzip();
-    }
-
-    pub fn go_down(&mut self) {
-        self.down_unzip();
-    }
-
-    pub fn turn_right(&mut self) {
-        self.rotate_right();
-    }
-
-    pub fn turn_left(&mut self) {
-        self.rotate_left();
-    }
-
     pub fn instance(&mut self, atoms: HashMap<Atom, Self>) {
         let trees: HashMap<Atom, Tree<PropBinary, PropUnary, Atom>> = atoms
             .into_iter()
@@ -174,15 +149,87 @@ impl Proposition {
         self.inorder_traverse_mut(&mut |f: &mut Formula<_, _, _>| f.instantiate(&trees));
     }
 
-    pub fn consume_unary(&mut self, unary: PropUnary) {
-        self.full_unify(unary);
+    pub fn top_unify(&mut self, un: PropUnary) {
+        self.deref_mut().top_unify(un)
     }
 
-    pub fn append_unary(&mut self, unary: PropUnary) {
-        self.unify(unary);
+    pub fn unify(&mut self, un: PropUnary) {
+        self.deref_mut().unify(un)
+    }
+
+    pub fn zip_up(&mut self) {
+        self.deref_mut().zip_up()
+    }
+
+    pub fn zip_right(&mut self) {
+        self.deref_mut().zip_right()
+    }
+
+    pub fn zip_left(&mut self) {
+        self.deref_mut().zip_left()
+    }
+
+    pub fn zip(&mut self) {
+        self.deref_mut().zip()
+    }
+
+    pub fn top_zip(&mut self) {
+        self.deref_mut().top_zip()
+    }
+
+    pub fn unzip_down(&mut self) {
+        self.deref_mut().unzip_down()
+    }
+
+    pub fn unzip_right(&mut self) {
+        self.deref_mut().unzip_right()
+    }
+
+    pub fn unzip_left(&mut self) {
+        self.deref_mut().unzip_left()
+    }
+
+    pub fn rotate_right(&mut self) {
+        self.deref_mut().rotate_right()
+    }
+
+    pub fn rotate_left(&mut self) {
+        self.deref_mut().rotate_left()
+    }
+
+    pub fn distribute_right(&mut self) {
+        self.deref_mut().distribute_right()
+    }
+
+    pub fn distribute_left(&mut self) {
+        self.deref_mut().distribute_left()
+    }
+
+    pub fn distribute_down(&mut self, new_bin: Option<PropBinary>) {
+        self.deref_mut().distribute_down(new_bin)
+    }
+
+    pub fn lower_left(&mut self) {
+        self.deref_mut().lower_left()
+    }
+
+    pub fn lower_right(&mut self) {
+        self.deref_mut().lower_right()
+    }
+
+    pub fn push_down(&mut self, new_un: Option<PropUnary>) {
+        self.deref_mut().push_down(new_un)
+    }
+
+    pub fn flip(&mut self) {
+        self.deref_mut().flip()
     }
 
     pub fn __str__(&self) -> String {
+        self.to_string()
+    }
+
+    pub fn __repr__(&self) -> String {
         self.to_string()
     }
 

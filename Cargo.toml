@@ -4,6 +4,8 @@ version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+pyo3-build-config = "0.20.0"
 
 [dependencies]
 rand = "0.8.5"
@@ -11,6 +13,7 @@ pyo3 = "0.19.2"
 cascade = "1.0.1"
 
 [features]
+auto-init = ["pyo3/auto-initialize"]
 extension-module = ["pyo3/extension-module"]
 default = ["extension-module"]
 

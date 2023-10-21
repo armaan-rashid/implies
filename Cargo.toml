@@ -1,6 +1,6 @@
 [package]
 name = "implies"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 license = "MIT"
 description = "A parser for logical formulas"
@@ -16,7 +16,7 @@ crate-type = ["cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [build-dependencies]
-pyo3-build-config = "0.20.0"
+pyo3-build-config = {version = "0.20.0", optional = true}
 
 [dependencies]
 rand = "0.8.5"
@@ -26,6 +26,6 @@ cascade = "1.0.1"
 [features]
 auto-init = ["pyo3/auto-initialize"]
 extension-module = ["pyo3/extension-module"]
-python = ["pyo3", "auto-init", "extension-module"]
+python = ["pyo3", "auto-init", "extension-module", "pyo3-build-config"]
 default = []
 

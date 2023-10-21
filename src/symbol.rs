@@ -1,6 +1,4 @@
 use super::formula::{Tree, Zipper};
-use pyo3::exceptions::PyValueError;
-use pyo3::{pyclass, IntoPy, PyErr, PyErrArguments};
 use std::fmt::Display;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -231,18 +229,6 @@ impl Display for ParseError {
     }
 }
 
-impl PyErrArguments for ParseError {
-    fn arguments(self, py: pyo3::Python<'_>) -> pyo3::PyObject {
-        self.to_string().into_py(py)
-    }
-}
-
-impl From<ParseError> for PyErr {
-    fn from(value: ParseError) -> Self {
-        PyValueError::new_err(value)
-    }
-}
-
 pub struct ParsedSymbols<B, U, A>(pub Result<Vec<Symbol<B, U, A>>, ParseError>)
 where
     B: Symbolic + Match,
@@ -307,7 +293,6 @@ static ATOMS: [&'static str; 52] = [
 /// reason you need more than 52 atoms, then they can only be printed/parsed
 /// as the corresponding numbers.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default)]
-#[pyclass]
 pub struct Atom(pub usize);
 
 impl Deref for Atom {

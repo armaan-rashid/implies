@@ -1,7 +1,14 @@
 [package]
 name = "implies"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
+license = "MIT"
+keywords = ["logic", "binary_tree", "tree", "graph"]
+categories = ["data-structures", "mathematics"]
+
+[lib]
+name = "implies"
+crate-type = ["cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [build-dependencies]
@@ -9,11 +16,12 @@ pyo3-build-config = "0.20.0"
 
 [dependencies]
 rand = "0.8.5"
-pyo3 = "0.19.2"
+pyo3 = {version = "0.19.2", optional = true}
 cascade = "1.0.1"
 
 [features]
 auto-init = ["pyo3/auto-initialize"]
 extension-module = ["pyo3/extension-module"]
-default = ["extension-module"]
+python = ["pyo3", "auto-init", "extension-module"]
+default = []
 

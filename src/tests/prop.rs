@@ -1,11 +1,8 @@
 use crate::formula::{Formula, Tree, Zipper};
-use crate::prop::{Atom, PropBinary, PropFormula, PropUnary, Proposition};
+use crate::prop::{Atom, PropBinary, PropFormula, PropSymbol, PropUnary};
 use crate::symbol::{Match, ParseError, ParsedSymbols, Symbol};
 use cascade::cascade;
-use pyo3::PyResult;
 use std::collections::HashMap;
-
-type PropSymbol = Symbol<PropBinary, PropUnary, Atom>;
 
 #[test]
 fn atomic_matching() -> Result<(), ParseError> {
@@ -53,7 +50,7 @@ fn symbol_parse() -> Result<(), ParseError> {
     // a sampling of some of the weird symbol representations
     syms = vec![Symbol::Binary(PropBinary::Implies)];
     parsed = ParsedSymbols::from("->").0?;
-    let mut parsed1: Vec<PropSymbol> = ParsedSymbols::from("implies").0?;
+    let parsed1: Vec<PropSymbol> = ParsedSymbols::from("implies").0?;
     assert_eq!(syms, parsed);
     assert_eq!(syms, parsed1);
 

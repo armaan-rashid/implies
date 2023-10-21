@@ -49,11 +49,5 @@ pub mod prop;
 pub mod symbol;
 pub mod tests;
 
-use prop::Proposition;
-use pyo3::prelude::*;
-
-#[pymodule]
-fn implies(py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Proposition>()?;
-    Ok(())
-}
+#[cfg(features = "python")]
+pub mod python;

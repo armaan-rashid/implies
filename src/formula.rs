@@ -1,4 +1,4 @@
-use super::symbol::{Parsable, ParseError, Symbol, Symbolic};
+use super::symbol::{Match, ParseError, Symbol, Symbolic};
 use crate::symbol::ParsedSymbols;
 use cascade::cascade;
 use std::collections::HashMap;
@@ -312,10 +312,10 @@ impl<B: Symbolic, U: Symbolic, A: Symbolic> Zipper<B, U, A> {
 /// no signal something has either happened or failed to (e.g. as would be signaled by returning a Result<T,E> type).
 ///
 /// [`Result<T, E>`]: std::result::Result
-/// [`top_zip`]: Formula::top_zip
-/// [`combine`]: Formula::combine
-/// [`distribute_right`]: Formula::distribute_right
-/// [`inorder_traverse_mut`]: Formula::inorder_traverse_mut
+/// [`top_zip`]: Self::top_zip
+/// [`combine`]: Self::combine
+/// [`distribute_right`]: Self::distribute_right
+/// [`inorder_traverse_mut`]: Self::inorder_traverse_mut
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug, Default)]
 pub struct Formula<B, U, A>
 where
@@ -390,7 +390,8 @@ where
 
     /// Just like [`zip_right`] except you're in the right subtree of a
     /// binary tree. The destination state is the exact same.
-    /// [`zip_right`]: Formula::zip_right
+    ///
+    /// [`zip_right`]: Self::zip_right
     pub fn zip_left(&mut self) {
         if let Zipper::Left { sub, bin, zip } = &mut self.zipper {
             self.tree.left_combine(*bin, std::mem::take(sub));
@@ -398,10 +399,10 @@ where
         }
     }
 
-    /// The inverse of [`zip_left`]: decompose a binary tree and
+    /// The inverse of [`zip_left`]. Decompose a binary tree and
     /// traverse to the right subtree of a binary formula.
     ///
-    /// [`zip_left`]: Formula::zip_left
+    /// [`zip_left`]: Self::zip_left
     pub fn unzip_right(&mut self) {
         if let Tree::Binary { conn, left, right } = &mut self.tree {
             self.zipper = Zipper::Left {
@@ -415,7 +416,8 @@ where
 
     /// The inverse of [`zip_right`]: decompose a binary tree and travel
     /// to the left subtree of a binary formula.
-    /// [`zip_right`]: Formula::zip_right
+    ///
+    /// [`zip_right`]: Self::zip_right
     pub fn unzip_left(&mut self) {
         if let Tree::Binary { conn, left, right } = &mut self.tree {
             self.zipper = Zipper::Right {
@@ -429,7 +431,8 @@ where
 
     /// Traverse to the formula contained in a unary tree.
     /// The inverse of [`zip_up`].
-    /// [`zip_up`]: Formula::zip_up
+    ///
+    /// [`zip_up`]: Self::zip_up
     pub fn unzip_down(&mut self) {
         if let Tree::Unary { conn, next } = &mut self.tree {
             self.zipper = Zipper::Up {
@@ -476,6 +479,8 @@ where
     /// Exactly the same as [`combine`] but the new subtree is inserted as
     /// a left subtree, so you're now in the right subtree of a binary tree.
     /// And therefore you end up with a [`Zipper::Left`].
+    ///
+    /// [`combine`]: Self::combine
     /// [`Zipper::Left`]: Zipper::Left
     pub fn left_combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
         self.zipper = Zipper::Left {
@@ -494,7 +499,8 @@ where
     }
 
     /// [`top_combine`] but on the left side.
-    /// [`top_combine`]: Formula::top_combine
+    ///
+    /// [`top_combine`]: Self::top_combine
     pub fn top_left_combine(&mut self, bin: B, mut formula: Self) {
         formula.top_zip();
         self.top_zip();
@@ -522,7 +528,8 @@ where
     /// If you want the whole formula simply [`top_zip`] first.
     /// Takes in a closure which can mutate the formula in
     /// place somehow.
-    /// [`top_zip`]: Formula::top_zip
+    ///
+    /// [`top_zip`]: Self::top_zip
     pub fn inorder_traverse_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
         match &self.tree {
             Tree::Binary { .. } => cascade! {
@@ -555,8 +562,9 @@ where
     /// whereas this method will apply transformations immediately as it
     /// visits each node, having potentially weird consequences if there
     /// are in place mutations going on with formulae.
-    /// [`rotate_right`]: Formula::rotate_right
-    /// [`inorder_traverse_mut`]: Formula::inorder_traverse_mut
+    ///
+    /// [`rotate_right`]: Self::rotate_right
+    /// [`inorder_traverse_mut`]: Self::inorder_traverse_mut
     pub fn preorder_traverse_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
         self.apply_mut(func);
         match &self.tree {
@@ -657,7 +665,9 @@ where
     ///                     B       C
     /// ```
     /// is an example of a right rotation. More detail available in the
-    /// documentation of `.rotate_left()`.
+    /// documentation of [`.rotate_left()`].
+    ///
+    /// [`.rotate_left()`]: Self::rotate_left
     pub fn rotate_right(&mut self) {
         if let Formula {
             tree:
@@ -717,7 +727,8 @@ where
 
     /// Distribute a binary operator over the left subtree (corresponding to a right
     /// rotation). See [`distribute_right`] for more.
-    /// [`distribute_right`]: Formula::distribute_right
+    ///
+    /// [`distribute_right`]: Self::distribute_right
     pub fn distribute_left(&mut self) {
         if !self.zipper.is_right() || !self.tree.is_binary() {
             return;
@@ -736,9 +747,10 @@ where
 
     /// Very similar to the [`.rotate_*`] methods but with unary operators
     /// swapping precedence with binary ones instead. Because of this the
-    /// `.lower_*` methods don't reverse each other unlike the [`.rotate_`] methods.
+    /// `.lower_*` methods don't reverse each other unlike the [`.rotate_*`] methods.
     /// This method unifies the right subformula.
-    /// [`.rotate_*`]: Formula::rotate_right
+    ///
+    /// [`.rotate_*`]: Self::rotate_right
     pub fn lower_right(&mut self) {
         if let Formula {
             tree: Tree::Binary { right, .. },
@@ -751,7 +763,8 @@ where
     }
 
     /// Same as [`.lower_right()`] but unifies the left subformula.
-    /// [`.lower_right()`]: Formula::lower_right
+    ///
+    /// [`.lower_right()`]: Self::lower_right
     pub fn lower_left(&mut self) {
         if let Formula {
             tree: Tree::Binary { left, .. },
@@ -770,8 +783,9 @@ where
     /// If you're unfamiliar with logic, this method exists because in numerous
     /// languages a binary operator will have a 'dual' operator that it swaps
     /// with when a unary operator is distributed over the two operands.
-    /// [`lower_left`]: Formula::lower_left
-    /// [`lower_right`]: Formula::lower_right
+    ///
+    /// [`lower_left`]: Self::lower_left
+    /// [`lower_right`]: Self::lower_right
     pub fn distribute_down(&mut self, new_bin: Option<B>) {
         if let Formula {
             tree: Tree::Binary { conn, left, right },
@@ -806,8 +820,9 @@ where
 
     /// Instantiate an *atom* in the formula (as usual, starting where you currently are)
     /// with another tree subformula. If you want to do this over a whole formula,
-    /// just call this inside [`inorder_traverse_mut()`].
-    /// [`inorder_traverse_mut`]: Formula::inorder_traverse_mut
+    /// just call this inside [`inorder_traverse_mut`].
+    ///
+    /// [`inorder_traverse_mut`]: Self::inorder_traverse_mut
     pub fn instantiate(&mut self, formulas: &HashMap<A, Tree<B, U, A>>) {
         if let Tree::Atom(a) = self.tree {
             if formulas.contains_key(&a) {
@@ -847,7 +862,7 @@ where
     }
 }
 
-impl<B: Parsable, U: Parsable, A: Parsable> Formula<B, U, A> {
+impl<B: Symbolic + Match, U: Symbolic + Match, A: Symbolic + Match> Formula<B, U, A> {
     /// As expected, read a formula from a string. Return error if the string is malformed.
     pub fn from_str(value: &str) -> Result<Self, ParseError> {
         Ok(Formula {

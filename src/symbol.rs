@@ -11,9 +11,6 @@ pub trait Symbolic:
 {
 }
 
-/// marker trait for symbol types to show they're parsable from strings
-pub trait Parsable: Symbolic + Match {}
-
 #[derive(Copy, PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum Symbol<B, U, A>
 where
@@ -121,6 +118,7 @@ where
     /// operator that's not in parentheses. Also basically validates the slice of symbols.
     /// Parentheses are treated as black boxes, so if the whole formula is wrapped in parentheses
     /// it may be valid but this method will return an error! [`strip_parentheses`] first.
+    ///
     /// [`strip_parentheses`]: Symbol::strip_parentheses
     pub fn main_operator(symbols: &[Self]) -> Result<(usize, Self), ParseError> {
         let mut symbol: Option<(usize, Self)> = None;
@@ -154,9 +152,9 @@ where
 
 impl<B, U, A> Match for Symbol<B, U, A>
 where
-    B: Parsable,
-    U: Parsable,
-    A: Parsable,
+    B: Symbolic + Match,
+    U: Symbolic + Match,
+    A: Symbolic + Match,
 {
     fn get_match(s: &str) -> Option<Self> {
         if s == "(" {
@@ -247,15 +245,15 @@ impl From<ParseError> for PyErr {
 
 pub struct ParsedSymbols<B, U, A>(pub Result<Vec<Symbol<B, U, A>>, ParseError>)
 where
-    B: Parsable,
-    U: Parsable,
-    A: Parsable;
+    B: Symbolic + Match,
+    U: Symbolic + Match,
+    A: Symbolic + Match;
 
 impl<B, U, A> Deref for ParsedSymbols<B, U, A>
 where
-    B: Parsable,
-    U: Parsable,
-    A: Parsable,
+    B: Symbolic + Match,
+    U: Symbolic + Match,
+    A: Symbolic + Match,
 {
     type Target = Result<Vec<Symbol<B, U, A>>, ParseError>;
 
@@ -266,9 +264,9 @@ where
 
 impl<B, U, A> DerefMut for ParsedSymbols<B, U, A>
 where
-    B: Parsable,
-    U: Parsable,
-    A: Parsable,
+    B: Symbolic + Match,
+    U: Symbolic + Match,
+    A: Symbolic + Match,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
@@ -277,9 +275,9 @@ where
 
 impl<B, U, A> From<&str> for ParsedSymbols<B, U, A>
 where
-    B: Parsable,
-    U: Parsable,
-    A: Parsable,
+    B: Symbolic + Match,
+    U: Symbolic + Match,
+    A: Symbolic + Match,
 {
     fn from(value: &str) -> Self {
         let mut start: usize = 0;
@@ -343,5 +341,3 @@ impl Match for Atom {
         }
     }
 }
-
-impl Parsable for Atom {}

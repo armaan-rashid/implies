@@ -1,6 +1,6 @@
 use super::formula::{Formula, Tree, Zipper};
 pub use super::symbol::Atom;
-use super::symbol::{Match, Parsable, ParseError, Symbolic};
+use super::symbol::{Match, ParseError, Symbolic};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -31,8 +31,6 @@ impl Match for PropUnary {
         }
     }
 }
-
-impl Parsable for PropUnary {}
 
 /// Deriving `PartialOrd` and `Ord` on this enum means that, by ordering the
 /// fields in increasing order of precedence, no other work has to be done
@@ -71,8 +69,6 @@ impl Match for PropBinary {
         }
     }
 }
-
-impl Parsable for PropBinary {}
 
 /// Alias for the propositional instantiation of `Formula`.
 pub type PropFormula = Formula<PropBinary, PropUnary, Atom>;

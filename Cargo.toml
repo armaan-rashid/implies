@@ -1,11 +1,11 @@
 [package]
 name = "implies"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 license = "MIT"
 description = "A parser for logical formulas"
 repository = "https://github.com/armaan-rashid/implies"
-documentation = "https://docs.rs/implies/0.2.1-alpha/implies/"
+documentation = "https://docs.rs/implies/0.2.4-alpha/implies/"
 readme = "README.md"
 keywords = ["logic", "binary_tree", "tree", "graph"]
 categories = ["data-structures", "mathematics"]
@@ -23,8 +23,4 @@ pyo3 = {version = "0.19.2", optional = true}
 cascade = "1.0.1"
 
 [features]
-auto-init = ["pyo3/auto-initialize"]
-extension-module = ["pyo3/extension-module"]
-python = ["pyo3", "auto-init", "extension-module", "pyo3-build-config"]
-default = []
-
+python = ["pyo3", "pyo3/auto-initialize", "pyo3/extension-module", "pyo3-build-config"]

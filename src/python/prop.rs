@@ -1,8 +1,13 @@
-use crate::Formula;
+use crate::formula::{Formula, Tree, Zipper};
+use crate::prop::{PropBinary, PropFormula, PropUnary};
+use crate::symbol::{Atom, Match, ParseError, Symbolic};
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::PyErr;
+use std::collections::HashMap;
+use std::ops::DerefMut;
 
-impl PyErrArguments for ParseError {
+impl pyo3::PyErrArguments for ParseError {
     fn arguments(self, py: pyo3::Python<'_>) -> pyo3::PyObject {
         self.to_string().into_py(py)
     }
@@ -14,105 +19,105 @@ impl From<ParseError> for PyErr {
     }
 }
 
-#[pyclass]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default)]
-struct PyAtom(pub usize);
+// #[pyclass]
+// #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default)]
+// pub struct PyAtom(pub usize);
 
-impl Deref for PyAtom {
-    type Target = usize;
+// impl std::ops::Deref for PyAtom {
+//     type Target = usize;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         &self.0
+//     }
+// }
 
-impl Display for PyAtom {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if **self < ATOMS.len() {
-            write!(f, "{}", ATOMS[**self])
-        } else {
-            write!(f, "{}", self.to_string())
-        }
-    }
-}
+// impl std::fmt::Display for PyAtom {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         if **self < ATOMS.len() {
+//             write!(f, "{}", ATOMS[**self])
+//         } else {
+//             write!(f, "{}", self.to_string())
+//         }
+//     }
+// }
 
-impl Symbolic for PyAtom {}
+// impl Symbolic for PyAtom {}
 
-impl Match for PyAtom {
-    fn get_match(s: &str) -> Option<Self> {
-        if let Some(i) = ATOMS.iter().position(|val| &s == val) {
-            Some(PyAtom(i))
-        } else if let Ok(i) = s.parse::<usize>() {
-            Some(PyAtom(i))
-        } else {
-            None
-        }
-    }
-}
+// impl Match for PyAtom {
+//     fn get_match(s: &str) -> Option<Self> {
+//         if let Some(i) = ATOMS.iter().position(|val| &s == val) {
+//             Some(PyAtom(i))
+//         } else if let Ok(i) = s.parse::<usize>() {
+//             Some(PyAtom(i))
+//         } else {
+//             None
+//         }
+//     }
+// }
 
-#[pyclass]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
-pub enum PyPropUnary {
-    #[default]
-    Not,
-}
+// #[pyclass]
+// #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
+// pub enum PyPropUnary {
+//     #[default]
+//     Not,
+// }
 
-impl Display for PyPropUnary {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PyPropUnary::Not => write!(f, "¬"),
-        }
-    }
-}
+// impl std::fmt::Display for PyPropUnary {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             PyPropUnary::Not => write!(f, "¬"),
+//         }
+//     }
+// }
 
-impl Symbolic for PyPropUnary {}
+// impl Symbolic for PyPropUnary {}
 
-impl Match for PyPropUnary {
-    fn get_match(s: &str) -> Option<Self> {
-        match s {
-            "¬" | "!" | "~" | "not" => Some(Self::Not),
-            _ => None,
-        }
-    }
-}
+// impl Match for PyPropUnary {
+//     fn get_match(s: &str) -> Option<Self> {
+//         match s {
+//             "¬" | "!" | "~" | "not" => Some(Self::Not),
+//             _ => None,
+//         }
+//     }
+// }
 
-/// Deriving `PartialOrd` and `Ord` on this enum means that, by ordering the
-/// fields in increasing order of precedence, no other work has to be done
-/// to make sure the relative precedence of operators is understood.
-#[pyclass]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
-pub enum PyPropBinary {
-    Iff,
-    #[default]
-    Implies,
-    Or,
-    And,
-}
+// /// Deriving `PartialOrd` and `Ord` on this enum means that, by ordering the
+// /// fields in increasing order of precedence, no other work has to be done
+// /// to make sure the relative precedence of operators is understood.
+// #[pyclass]
+// #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
+// pub enum PyPropBinary {
+//     Iff,
+//     #[default]
+//     Implies,
+//     Or,
+//     And,
+// }
 
-impl Display for PyPropBinary {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PyPropBinary::Iff => write!(f, " ↔ "),
-            PyPropBinary::Implies => write!(f, " → "),
-            PyPropBinary::And => write!(f, " ∧ "),
-            PyPropBinary::Or => write!(f, " ∨ "),
-        }
-    }
-}
+// impl std::fmt::Display for PyPropBinary {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             PyPropBinary::Iff => write!(f, " ↔ "),
+//             PyPropBinary::Implies => write!(f, " → "),
+//             PyPropBinary::And => write!(f, " ∧ "),
+//             PyPropBinary::Or => write!(f, " ∨ "),
+//         }
+//     }
+// }
 
-impl Symbolic for PyPropBinary {}
+// impl Symbolic for PyPropBinary {}
 
-impl Match for PyPropBinary {
-    fn get_match(s: &str) -> Option<Self> {
-        match s {
-            "<->" | "↔" | "iff" => Some(Self::Iff),
-            "->" | "→" | "implies" => Some(Self::Implies),
-            "\\/" | "∨" | "or" => Some(Self::Or),
-            "/\\" | "∧" | "and" => Some(Self::And),
-            _ => None,
-        }
-    }
-}
+// impl Match for PyPropBinary {
+//     fn get_match(s: &str) -> Option<Self> {
+//         match s {
+//             "<->" | "↔" | "iff" => Some(Self::Iff),
+//             "->" | "→" | "implies" => Some(Self::Implies),
+//             "\\/" | "∨" | "or" => Some(Self::Or),
+//             "/\\" | "∧" | "and" => Some(Self::And),
+//             _ => None,
+//         }
+//     }
+// }
 
 /// The Python-bound instance of formula for propositional formulas.
 /// This language includes the negation operator and operators for
@@ -120,10 +125,10 @@ impl Match for PyPropBinary {
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug)]
 #[pyclass]
 pub struct Proposition {
-    formula: Formula<PropBinary, PropUnary, PyAtom>,
+    formula: Formula<PropBinary, PropUnary, Atom>,
 }
 
-impl Deref for Proposition {
+impl std::ops::Deref for Proposition {
     type Target = PropFormula;
 
     fn deref(&self) -> &Self::Target {
@@ -131,14 +136,14 @@ impl Deref for Proposition {
     }
 }
 
-impl DerefMut for Proposition {
+impl std::ops::DerefMut for Proposition {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.formula
     }
 }
 
-impl From<PropFormula> for Proposition {
-    fn from(value: PropFormula) -> Self {
+impl From<Formula<PropBinary, PropUnary, Atom>> for Proposition {
+    fn from(value: Formula<PropBinary, PropUnary, Atom>) -> Self {
         Proposition { formula: value }
     }
 }
@@ -148,12 +153,12 @@ impl From<PropFormula> for Proposition {
 #[pymethods]
 impl Proposition {
     #[new]
-    pub fn new(atom: Option<PyAtom>, s: Option<&str>) -> PyResult<Self> {
+    pub fn new(atom: Option<Atom>, s: Option<&str>) -> PyResult<Self> {
         if let Some(val) = s {
             Self::from_str(val)
         } else if let Some(a) = atom {
             Ok(Formula {
-                tree: Tree::PyAtom(a),
+                tree: Tree::Atom(a),
                 zipper: Zipper::Top,
             }
             .into())
@@ -178,8 +183,8 @@ impl Proposition {
         self.deref_mut().left_combine(bin, second.formula.tree);
     }
 
-    pub fn instance(&mut self, atoms: HashMap<PyAtom, Self>) {
-        let trees: HashMap<PyAtom, Tree<PropBinary, PropUnary, PyAtom>> = atoms
+    pub fn instance(&mut self, atoms: HashMap<Atom, Self>) {
+        let trees: HashMap<Atom, Tree<PropBinary, PropUnary, Atom>> = atoms
             .into_iter()
             .map(|(k, v)| (k, v.formula.tree))
             .collect();

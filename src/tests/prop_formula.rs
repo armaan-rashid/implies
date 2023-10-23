@@ -1,4 +1,4 @@
-use crate::formula::{Formula, Tree, Zipper};
+use crate::formula::{Tree, Zipper};
 use crate::prop::{Atom, PropBinary, PropFormula, PropSymbol, PropUnary};
 use crate::symbol::{Match, ParseError, ParsedSymbols, Symbol};
 use cascade::cascade;

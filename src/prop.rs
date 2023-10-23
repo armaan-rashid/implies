@@ -1,10 +1,13 @@
 use super::formula::Formula;
 pub use super::symbol::Atom;
 use super::symbol::{Match, Symbol, Symbolic};
+#[cfg(feature = "python")]
+use pyo3::pyclass;
 use std::fmt::Display;
 
 /// The negation operator, nothing super remarkable here.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
+#[cfg_attr(feature = "python", pyclass)]
 pub enum PropUnary {
     #[default]
     Not,
@@ -33,6 +36,7 @@ impl Match for PropUnary {
 /// fields in increasing order of precedence, no other work has to be done
 /// to make sure the relative precedence of operators is understood.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
+#[cfg_attr(feature = "python", pyclass)]
 pub enum PropBinary {
     Iff,
     #[default]

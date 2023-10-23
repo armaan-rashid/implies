@@ -1,4 +1,6 @@
 use super::formula::{Tree, Zipper};
+#[cfg(feature = "python")]
+use pyo3::pyclass;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
@@ -280,7 +282,7 @@ where
     }
 }
 
-static ATOMS: [&'static str; 52] = [
+pub static ATOMS: [&'static str; 52] = [
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s",
     "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
     "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
@@ -293,6 +295,7 @@ static ATOMS: [&'static str; 52] = [
 /// reason you need more than 52 atoms, then they can only be printed/parsed
 /// as the corresponding numbers.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default)]
+#[cfg_attr(feature = "python", pyclass)]
 pub struct Atom(pub usize);
 
 impl Deref for Atom {

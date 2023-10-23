@@ -120,7 +120,7 @@ impl Match for PyPropBinary {
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug)]
 #[pyclass]
 pub struct Proposition {
-    formula: Formula<PropBinary, PropUnary, Atom>,
+    formula: Formula<PropBinary, PropUnary, PyAtom>,
 }
 
 impl Deref for Proposition {
@@ -148,12 +148,12 @@ impl From<PropFormula> for Proposition {
 #[pymethods]
 impl Proposition {
     #[new]
-    pub fn new(atom: Option<Atom>, s: Option<&str>) -> PyResult<Self> {
+    pub fn new(atom: Option<PyAtom>, s: Option<&str>) -> PyResult<Self> {
         if let Some(val) = s {
             Self::from_str(val)
         } else if let Some(a) = atom {
             Ok(Formula {
-                tree: Tree::Atom(a),
+                tree: Tree::PyAtom(a),
                 zipper: Zipper::Top,
             }
             .into())
@@ -178,8 +178,8 @@ impl Proposition {
         self.deref_mut().left_combine(bin, second.formula.tree);
     }
 
-    pub fn instance(&mut self, atoms: HashMap<Atom, Self>) {
-        let trees: HashMap<Atom, Tree<PropBinary, PropUnary, Atom>> = atoms
+    pub fn instance(&mut self, atoms: HashMap<PyAtom, Self>) {
+        let trees: HashMap<PyAtom, Tree<PropBinary, PropUnary, PyAtom>> = atoms
             .into_iter()
             .map(|(k, v)| (k, v.formula.tree))
             .collect();

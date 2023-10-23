@@ -1,6 +1,6 @@
 [package]
 name = "implies"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 license = "MIT"
 description = "A parser for logical formulas"
@@ -19,7 +19,6 @@ crate-type = ["cdylib"]
 pyo3-build-config = {version = "0.20.0", optional = true}
 
 [dependencies]
-rand = "0.8.5"
 pyo3 = {version = "0.19.2", optional = true}
 cascade = "1.0.1"
 

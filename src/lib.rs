@@ -54,7 +54,7 @@ mod tests;
 pub mod python;
 
 #[cfg(feature = "python")]
-use {pyo3::prelude::*, python::prop::Proposition};
+use {pyo3::prelude::*, python::proposition::Proposition};
 
 #[cfg(feature = "python")]
 #[pymodule]

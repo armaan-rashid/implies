@@ -19,113 +19,13 @@ impl From<ParseError> for PyErr {
     }
 }
 
-// #[pyclass]
-// #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Clone, Debug, Default)]
-// pub struct PyAtom(pub usize);
-
-// impl std::ops::Deref for PyAtom {
-//     type Target = usize;
-
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-
-// impl std::fmt::Display for PyAtom {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         if **self < ATOMS.len() {
-//             write!(f, "{}", ATOMS[**self])
-//         } else {
-//             write!(f, "{}", self.to_string())
-//         }
-//     }
-// }
-
-// impl Symbolic for PyAtom {}
-
-// impl Match for PyAtom {
-//     fn get_match(s: &str) -> Option<Self> {
-//         if let Some(i) = ATOMS.iter().position(|val| &s == val) {
-//             Some(PyAtom(i))
-//         } else if let Ok(i) = s.parse::<usize>() {
-//             Some(PyAtom(i))
-//         } else {
-//             None
-//         }
-//     }
-// }
-
-// #[pyclass]
-// #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
-// pub enum PyPropUnary {
-//     #[default]
-//     Not,
-// }
-
-// impl std::fmt::Display for PyPropUnary {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             PyPropUnary::Not => write!(f, "¬"),
-//         }
-//     }
-// }
-
-// impl Symbolic for PyPropUnary {}
-
-// impl Match for PyPropUnary {
-//     fn get_match(s: &str) -> Option<Self> {
-//         match s {
-//             "¬" | "!" | "~" | "not" => Some(Self::Not),
-//             _ => None,
-//         }
-//     }
-// }
-
-// /// Deriving `PartialOrd` and `Ord` on this enum means that, by ordering the
-// /// fields in increasing order of precedence, no other work has to be done
-// /// to make sure the relative precedence of operators is understood.
-// #[pyclass]
-// #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
-// pub enum PyPropBinary {
-//     Iff,
-//     #[default]
-//     Implies,
-//     Or,
-//     And,
-// }
-
-// impl std::fmt::Display for PyPropBinary {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             PyPropBinary::Iff => write!(f, " ↔ "),
-//             PyPropBinary::Implies => write!(f, " → "),
-//             PyPropBinary::And => write!(f, " ∧ "),
-//             PyPropBinary::Or => write!(f, " ∨ "),
-//         }
-//     }
-// }
-
-// impl Symbolic for PyPropBinary {}
-
-// impl Match for PyPropBinary {
-//     fn get_match(s: &str) -> Option<Self> {
-//         match s {
-//             "<->" | "↔" | "iff" => Some(Self::Iff),
-//             "->" | "→" | "implies" => Some(Self::Implies),
-//             "\\/" | "∨" | "or" => Some(Self::Or),
-//             "/\\" | "∧" | "and" => Some(Self::And),
-//             _ => None,
-//         }
-//     }
-// }
-
 /// The Python-bound instance of formula for propositional formulas.
 /// This language includes the negation operator and operators for
 /// or, and, implication and the biconditional.
 #[derive(PartialEq, Hash, Eq, PartialOrd, Ord, Clone, Debug)]
 #[pyclass]
 pub struct Proposition {
-    formula: Formula<PropBinary, PropUnary, Atom>,
+    formula: PropFormula,
 }
 
 impl std::ops::Deref for Proposition {
@@ -142,8 +42,8 @@ impl std::ops::DerefMut for Proposition {
     }
 }
 
-impl From<Formula<PropBinary, PropUnary, Atom>> for Proposition {
-    fn from(value: Formula<PropBinary, PropUnary, Atom>) -> Self {
+impl From<PropFormula> for Proposition {
+    fn from(value: PropFormula) -> Self {
         Proposition { formula: value }
     }
 }
@@ -153,18 +53,8 @@ impl From<Formula<PropBinary, PropUnary, Atom>> for Proposition {
 #[pymethods]
 impl Proposition {
     #[new]
-    pub fn new(atom: Option<Atom>, s: Option<&str>) -> PyResult<Self> {
-        if let Some(val) = s {
-            Self::from_str(val)
-        } else if let Some(a) = atom {
-            Ok(Formula {
-                tree: Tree::Atom(a),
-                zipper: Zipper::Top,
-            }
-            .into())
-        } else {
-            Err(ParseError::EmptyFormula.into())
-        }
+    pub fn new(s: &str) -> PyResult<Self> {
+        Ok(PropFormula::from_str(s)?.into())
     }
 
     pub fn top_combine(&mut self, bin: PropBinary, second: Self) {

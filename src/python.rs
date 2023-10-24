@@ -1,1 +1,1 @@
-pub mod prop;
+pub mod proposition;

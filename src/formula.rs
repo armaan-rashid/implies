@@ -830,25 +830,6 @@ where
             }
         }
     }
-
-    /// Read string representation starting from current position in formula.
-    pub fn read_inorder(&self) -> String {
-        let mut written = String::new();
-        self.tree.read_inorder(&mut written);
-        let mut context: &Zipper<B, U, A> = &self.zipper;
-        loop {
-            match context {
-                Zipper::Top => break,
-                Zipper::Right { bin, sub, .. } => written += &(bin.to_string() + &sub.to_string()),
-                Zipper::Left { bin, sub, .. } => {
-                    written = sub.to_string() + &bin.to_string() + &written
-                }
-                Zipper::Up { un, .. } => written = un.to_string() + &written,
-            }
-            context = context.peek_up();
-        }
-        written
-    }
 }
 
 impl<B, U, A> Display for Formula<B, U, A>
@@ -857,8 +838,14 @@ where
     U: Symbolic,
     A: Symbolic,
 {
+    /// Read string representation starting from current position in formula.
+    /// THIS WILL NOT PRINT ANY UNZIPPED PARTS OF THE FORMULA. Make sure to
+    /// [`Formula::top_zip`] first if you want the whole formula.
+    /// Printing is an easy way to see "where" you are in the formula.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.read_inorder())
+        let mut outparam = String::new();
+        self.tree.read_inorder(&mut outparam);
+        write!(f, "{}", outparam)
     }
 }
 

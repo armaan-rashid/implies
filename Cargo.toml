@@ -24,3 +24,4 @@ cascade = "1.0.1"
 
 [features]
 python = ["pyo3", "pyo3/auto-initialize", "pyo3/extension-module", "pyo3-build-config"]
+default = ["python"]

@@ -59,6 +59,9 @@ use {pyo3::prelude::*, python::proposition::Proposition};
 #[cfg(feature = "python")]
 #[pymodule]
 fn implies(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_class::<symbol::Atom>()?;
+    m.add_class::<prop::PropBinary>()?;
+    m.add_class::<prop::PropUnary>()?;
     m.add_class::<Proposition>()?;
     Ok(())
 }

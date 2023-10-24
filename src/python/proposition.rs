@@ -7,6 +7,26 @@ use pyo3::PyErr;
 use std::collections::HashMap;
 use std::ops::DerefMut;
 
+#[pymethods]
+impl Atom {
+    #[new]
+    #[pyo3(signature = (num=0, s=None))]
+    fn new(num: usize, s: Option<&str>) -> PyResult<Self> {
+        if let Some(string) = s {
+            Atom::get_match(string).ok_or(ParseError::EmptyFormula.into())
+        } else {
+            Ok(Atom(num))
+        }
+    }
+
+    fn __str__(&self) -> String {
+        self.to_string()
+    }
+    fn __repr__(&self) -> String {
+        self.to_string()
+    }
+}
+
 impl pyo3::PyErrArguments for ParseError {
     fn arguments(self, py: pyo3::Python<'_>) -> pyo3::PyObject {
         self.to_string().into_py(py)

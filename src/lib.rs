@@ -42,9 +42,10 @@
 //! [`Copy`]: std::marker::Copy
 //! [`Formula`]: formula::Formula
 //! [`Zipper`]: formula::Zipper
-//! [`Match`]: symbol::Match
+//! [`Match`]: parser::Match
 
 pub mod formula;
+pub mod parser;
 pub mod prop;
 pub mod symbol;
 

@@ -1,6 +1,7 @@
 use super::formula::Formula;
+use super::parser::Match;
 pub use super::symbol::Atom;
-use super::symbol::{Match, Symbol, Symbolic};
+use super::symbol::{Symbol, Symbolic};
 #[cfg(feature = "python")]
 use pyo3::pyclass;
 use std::fmt::Display;

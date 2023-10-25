@@ -1,11 +1,12 @@
 use crate::formula::{Formula, Tree, Zipper};
-use crate::prop::{PropBinary, PropFormula, PropUnary};
-use crate::symbol::{Atom, Match, ParseError, Symbolic};
+use crate::parser::{build_formula, Match, ParseError, ParsedSymbols};
+use crate::prop::{PropBinary, PropFormula, PropSymbol, PropUnary};
+use crate::symbol::{Atom, Symbolic};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::PyErr;
-use std::collections::HashMap;
-use std::ops::DerefMut;
+use std::collections::{HashMap, HashSet};
+use std::ops::{Deref, DerefMut};
 
 #[pymethods]
 impl Atom {
@@ -17,6 +18,16 @@ impl Atom {
         } else {
             Ok(Atom(num))
         }
+    }
+
+    #[getter]
+    fn get_value(&self) -> usize {
+        self.0
+    }
+
+    #[setter]
+    fn set_value(&mut self, new_val: usize) {
+        self.0 = new_val
     }
 
     fn __str__(&self) -> String {
@@ -74,7 +85,7 @@ impl From<PropFormula> for Proposition {
 impl Proposition {
     #[new]
     pub fn new(s: &str) -> PyResult<Self> {
-        Ok(PropFormula::from_str(s)?.into())
+        Ok(build_formula::<PropBinary, PropUnary, Atom>(s)?.into())
     }
 
     pub fn top_combine(&mut self, bin: PropBinary, second: Self) {
@@ -98,7 +109,7 @@ impl Proposition {
             .into_iter()
             .map(|(k, v)| (k, v.formula.tree))
             .collect();
-        self.inorder_traverse_mut(&mut |f: &mut Formula<_, _, _>| f.instantiate(&trees));
+        self.inorder_traverse_mut(&mut |f: &mut Formula<_, _, _>| Some(f.instantiate(&trees)));
     }
 
     pub fn top_unify(&mut self, un: PropUnary) {
@@ -177,6 +188,29 @@ impl Proposition {
         self.deref_mut().flip()
     }
 
+    /// Because we can't access the generic [`crate::symbol::Symbol`] type
+    /// in Python we'll take in a map of strings to nonnegative integers and
+    /// then use [`crate::parser::Match`] to map them to the symbols.
+    pub fn tensorize(
+        &mut self,
+        mapping: HashMap<&str, usize>,
+    ) -> PyResult<(Vec<usize>, Vec<Vec<usize>>)> {
+        Ok(self.deref_mut().tensorize(
+            &mapping
+                .into_iter()
+                .map_while(|(s, i)| Some((PropSymbol::get_match(s)?, i)))
+                .collect::<HashMap<PropSymbol, usize>>(),
+        )?)
+    }
+
+    pub fn get_atoms(&self) -> HashSet<Atom> {
+        self.deref().get_atoms()
+    }
+
+    pub fn normalize(&self, indices: Vec<Atom>) -> Option<Self> {
+        Some(self.deref().normalize(indices.into_iter())?.into())
+    }
+
     pub fn __str__(&self) -> String {
         self.to_string()
     }
@@ -187,6 +221,6 @@ impl Proposition {
 
     #[staticmethod]
     pub fn from_str(s: &str) -> PyResult<Self> {
-        Ok(PropFormula::from_str(s)?.into())
+        Ok(build_formula::<PropBinary, PropUnary, Atom>(s)?.into())
     }
 }

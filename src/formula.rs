@@ -1,7 +1,7 @@
-use super::symbol::{Match, ParseError, Symbol, Symbolic};
-use crate::symbol::ParsedSymbols;
+use super::symbol::{Symbol, Symbolic};
+use crate::parser::ParseError;
 use cascade::cascade;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
 
@@ -96,6 +96,42 @@ where
         }
     }
 
+    /// Inorder traversal starting at the current zipper.
+    /// Does not mutate the formula at all but the closure passed
+    /// in is still [`std::ops::FnMut`] so that other state
+    /// can be mutated. As usual returns [`Option<()>`] so that
+    /// traversal can be stopped early by returning `None`.
+    pub fn inorder_traverse<F: FnMut(&Self) -> Option<()>>(&self, func: &mut F) -> Option<()> {
+        Some(match &self {
+            Tree::Binary { left, right, .. } => {
+                left.inorder_traverse(func);
+                func(self)?;
+                right.inorder_traverse(func);
+            }
+            Tree::Unary { next, .. } => {
+                func(self)?;
+                next.inorder_traverse(func);
+            }
+            Tree::Atom(_) => func(self)?,
+        })
+    }
+
+    /// Preorder traversal starting at the current context.
+    /// Also takes in a closure that can read the formula.
+    pub fn preorder_traverse<F: FnMut(&Self) -> Option<()>>(&self, func: &mut F) -> Option<()> {
+        func(self)?;
+        Some(match &self {
+            Tree::Binary { left, right, .. } => {
+                left.inorder_traverse(func);
+                right.inorder_traverse(func);
+            }
+            Tree::Unary { next, .. } => {
+                next.inorder_traverse(func);
+            }
+            Tree::Atom(_) => {}
+        })
+    }
+
     /// Combine two trees with a binary operator, inserting the new tree
     /// on the right side.
     pub fn combine(&mut self, bin: B, formula: Self) {
@@ -157,24 +193,6 @@ where
                 }
             }
             Tree::Atom(a) => repr.push_str(&a.to_string()),
-        }
-    }
-
-    /// Recursively build a tree from a slice of symbols.
-    pub fn build_tree(syms: &[Symbol<B, U, A>]) -> Result<Self, ParseError> {
-        let symbols = Symbol::strip_parentheses(syms)?;
-        match Symbol::main_operator(symbols)? {
-            (i, Symbol::Binary(b)) => Ok(Tree::Binary {
-                conn: b,
-                left: Box::new(Self::build_tree(&symbols[..i])?),
-                right: Box::new(Self::build_tree(&symbols[i + 1..])?),
-            }),
-            (i, Symbol::Unary(u)) => Ok(Tree::Unary {
-                conn: u,
-                next: Box::new(Self::build_tree(&symbols[i + 1..])?),
-            }),
-            (_, Symbol::Atom(a)) => Ok(Tree::Atom(a)),
-            _ => unreachable!(), // main_operator never returns a parenthesis
         }
     }
 }
@@ -270,6 +288,18 @@ impl<B: Symbolic, U: Symbolic, A: Symbolic> Zipper<B, U, A> {
                 zip: std::mem::take(zip),
             }
         }
+    }
+}
+
+/// If you're really lazy I guess!
+impl<B, U, A> From<&Formula<B, U, A>> for Tree<B, U, A>
+where
+    B: Symbolic,
+    U: Symbolic,
+    A: Symbolic,
+{
+    fn from(value: &Formula<B, U, A>) -> Self {
+        value.tree.clone()
     }
 }
 
@@ -527,30 +557,35 @@ where
     /// Inorder traversal starting at the current context.
     /// If you want the whole formula simply [`top_zip`] first.
     /// Takes in a closure which can mutate the formula in
-    /// place somehow.
+    /// place somehow. Returns Option<()> so traversal can be
+    /// stopped early if needed; in most cases can be ignored.
     ///
     /// [`top_zip`]: Self::top_zip
-    pub fn inorder_traverse_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
+    pub fn inorder_traverse_mut<F: FnMut(&mut Self) -> Option<()>>(
+        &mut self,
+        func: &mut F,
+    ) -> Option<()> {
         match &self.tree {
             Tree::Binary { .. } => cascade! {
                 self;
                 ..unzip_left();
                 ..inorder_traverse_mut(func);
                 ..zip();    // a general zip to account for any potential transformations
-                ..apply_mut(func);
+                ..apply_mut(func)?;
                 ..unzip_right();
                 ..inorder_traverse_mut(func);
                 ..zip()    // a general zip to account for any potential transformations
             },
             Tree::Unary { .. } => cascade! {
                 self;
-                ..apply_mut(func);
+                ..apply_mut(func)?;
                 ..unzip_down();
                 ..inorder_traverse_mut(func);
                 ..zip()    // a general zip to account for any potential transformations
             },
-            Tree::Atom(_) => self.apply_mut(func),
+            Tree::Atom(_) => self.apply_mut(func)?,
         }
+        Some(())
     }
 
     /// Preorder traversal starting at the current context.
@@ -565,12 +600,15 @@ where
     ///
     /// [`rotate_right`]: Self::rotate_right
     /// [`inorder_traverse_mut`]: Self::inorder_traverse_mut
-    pub fn preorder_traverse_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
-        self.apply_mut(func);
+    pub fn preorder_traverse_mut<F: FnMut(&mut Self) -> Option<()>>(
+        &mut self,
+        func: &mut F,
+    ) -> Option<()> {
+        self.apply_mut(func)?;
         match &self.tree {
             Tree::Binary { .. } => cascade! {
                 self;
-                ..apply_mut(func);
+                ..apply_mut(func)?;
                 ..unzip_left();
                 ..preorder_traverse_mut(func);
                 ..zip();    // a general zip to account for any potential transformations
@@ -580,19 +618,21 @@ where
             },
             Tree::Unary { .. } => cascade! {
                 self;
-                ..apply_mut(func);
+                ..apply_mut(func)?;
                 ..unzip_down();
                 ..preorder_traverse_mut(func);
                 ..zip()    // a general zip to account for any potential transformations
             },
-            Tree::Atom(_) => self.apply_mut(func),
+            Tree::Atom(_) => self.apply_mut(func)?,
         }
+        Some(())
     }
 
     /// Purely for the sake of nicer syntax, allows closures to be called method-style
-    /// as part of method chaining in the builder pattern, for builder closures this time.
-    pub fn apply_mut<F: FnMut(&mut Self)>(&mut self, func: &mut F) {
-        func(self);
+    /// as part of method chaining.
+    pub fn apply_mut<F: FnMut(&mut Self) -> Option<()>>(&mut self, func: &mut F) -> Option<()> {
+        func(self)?;
+        Some(())
     }
 
     /// A function which demonstrates some zipper-y fun, if you're currently at the
@@ -830,6 +870,68 @@ where
             }
         }
     }
+
+    /// Given some arbitrary mapping from symbols to nonnegative integers, encode
+    /// a formula as a list of integers corresponding to an inorder traversal of
+    /// the nodes, and another list of the parent-child relationships between
+    /// the nodes. If the mapping given is not total, return None.
+    /// The edges are returned in COO format (a list of node pairs).
+    pub fn tensorize(
+        &self,
+        mapping: &HashMap<Symbol<B, U, A>, usize>,
+    ) -> Result<(Vec<usize>, Vec<Vec<usize>>), ParseError> {
+        let mut nodes: Vec<usize> = vec![];
+        let mut edges: Vec<Vec<usize>> = vec![];
+        self.tree
+            .inorder_traverse(&mut |node| {
+                let sym = Symbol::from_tree(&node);
+                let parent = *mapping.get(&sym)?;
+                nodes.push(parent);
+                match node {
+                    Tree::Binary { left, right, .. } => {
+                        let child1 = *mapping.get(&Symbol::from_tree(left.as_ref()))?;
+                        let child2 = *mapping.get(&Symbol::from_tree(right.as_ref()))?;
+                        edges.push(vec![parent, child1]);
+                        edges.push(vec![parent, child2]);
+                    }
+                    Tree::Unary { next, .. } => {
+                        let child1 = *mapping.get(&Symbol::from_tree(next.as_ref()))?;
+                        edges.push(vec![parent, child1])
+                    }
+                    Tree::Atom(_) => {}
+                }
+                Some(())
+            })
+            .ok_or(ParseError::IncompleteEnum)?;
+        Ok((nodes, edges))
+    }
+
+    /// Store all the atoms that appear in the formula in a HashSet.
+    pub fn get_atoms(&self) -> HashSet<A> {
+        let mut atoms: HashSet<A> = HashSet::new();
+        self.tree.inorder_traverse(&mut |t: &Tree<B, U, A>| {
+            Some(if let &Tree::Atom(a) = t {
+                atoms.insert(a);
+            })
+        });
+        atoms
+    }
+
+    /// Normalize all the atoms in a formula by replacing its atoms with atoms
+    /// that index their first appearance in an inorder traversal.
+    /// The indices given are taken from a passed in iterator (over A) on which
+    /// [`std::iter::Iterator::next`] is called precisely once every time a
+    /// new atom is observed. In case the iterator runs out, returns None.
+    pub fn normalize<I: Iterator<Item = A>>(&self, mut indices: I) -> Option<Self> {
+        let mut seen: HashMap<A, A> = HashMap::new();
+        let mut formula = self.clone();
+        formula.inorder_traverse_mut(&mut |node| {
+            Some(if let Tree::Atom(a) = node.tree {
+                node.tree = Tree::Atom(*seen.entry(a).or_insert(indices.next()?));
+            })
+        })?;
+        Some(formula)
+    }
 }
 
 impl<B, U, A> Display for Formula<B, U, A>
@@ -849,12 +951,16 @@ where
     }
 }
 
-impl<B: Symbolic + Match, U: Symbolic + Match, A: Symbolic + Match> Formula<B, U, A> {
-    /// As expected, read a formula from a string. Return error if the string is malformed.
-    pub fn from_str(value: &str) -> Result<Self, ParseError> {
-        Ok(Formula {
-            tree: Tree::build_tree(&ParsedSymbols::from(value).0?[..])?,
+impl<B, U, A> From<Tree<B, U, A>> for Formula<B, U, A>
+where
+    B: Symbolic,
+    U: Symbolic,
+    A: Symbolic,
+{
+    fn from(value: Tree<B, U, A>) -> Self {
+        Formula {
+            tree: value,
             zipper: Zipper::Top,
-        })
+        }
     }
 }

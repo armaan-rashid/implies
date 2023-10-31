@@ -97,19 +97,29 @@ where
     U: Symbolic + Match,
     A: Symbolic + Match,
 {
-    fn get_match(s: &str) -> Option<Self> {
+    fn match_str(s: &str) -> Option<Self> {
         if s == "(" {
             Some(Symbol::Left)
         } else if s == ")" {
             Some(Symbol::Right)
-        } else if let Some(b) = B::get_match(s) {
+        } else if let Some(b) = B::match_str(s) {
             Some(Symbol::Binary(b))
-        } else if let Some(u) = U::get_match(s) {
+        } else if let Some(u) = U::match_str(s) {
             Some(Symbol::Unary(u))
-        } else if let Some(a) = A::get_match(s) {
+        } else if let Some(a) = A::match_str(s) {
             Some(Symbol::Atom(a))
         } else {
             None
+        }
+    }
+
+    fn get_matches(&self) -> Vec<String> {
+        match self {
+            Symbol::Binary(s) => s.get_matches(),
+            Symbol::Unary(s) => s.get_matches(),
+            Symbol::Atom(s) => s.get_matches(),
+            Symbol::Left => vec!["(".to_string()],
+            Symbol::Right => vec![")".to_string()],
         }
     }
 }
@@ -151,13 +161,20 @@ impl Display for Atom {
 impl Symbolic for Atom {}
 
 impl Match for Atom {
-    fn get_match(s: &str) -> Option<Self> {
+    fn match_str(s: &str) -> Option<Self> {
         if let Some(i) = ATOMS.iter().position(|val| &s == val) {
             Some(Atom(i))
         } else if let Ok(i) = s.parse::<usize>() {
             Some(Atom(i))
         } else {
             None
+        }
+    }
+
+    fn get_matches(&self) -> Vec<String> {
+        match self.0 {
+            ..=51 => vec![self.0.to_string(), ATOMS[self.0].to_string()],
+            _ => vec![self.0.to_string()],
         }
     }
 }

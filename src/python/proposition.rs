@@ -14,7 +14,7 @@ impl Atom {
     #[pyo3(signature = (num=0, s=None))]
     fn new(num: usize, s: Option<&str>) -> PyResult<Self> {
         if let Some(string) = s {
-            Atom::get_match(string).ok_or(ParseError::EmptyFormula.into())
+            Atom::match_str(string).ok_or(ParseError::EmptyFormula.into())
         } else {
             Ok(Atom(num))
         }
@@ -36,17 +36,38 @@ impl Atom {
     fn __repr__(&self) -> String {
         self.to_string()
     }
-}
 
-impl pyo3::PyErrArguments for ParseError {
-    fn arguments(self, py: pyo3::Python<'_>) -> pyo3::PyObject {
-        self.to_string().into_py(py)
+    fn str_matches(&self) -> Vec<String> {
+        self.get_matches()
+    }
+
+    #[staticmethod]
+    fn try_match(s: &str) -> Option<Self> {
+        Self::match_str(s)
     }
 }
 
-impl From<ParseError> for PyErr {
-    fn from(value: ParseError) -> Self {
-        PyValueError::new_err(value)
+#[pymethods]
+impl PropBinary {
+    fn str_matches(&self) -> Vec<String> {
+        self.get_matches()
+    }
+
+    #[staticmethod]
+    fn try_match(s: &str) -> Option<Self> {
+        Self::match_str(s)
+    }
+}
+
+#[pymethods]
+impl PropUnary {
+    fn str_matches(&self) -> Vec<String> {
+        self.get_matches()
+    }
+
+    #[staticmethod]
+    fn try_match(s: &str) -> Option<Self> {
+        Self::match_str(s)
     }
 }
 
@@ -198,7 +219,7 @@ impl Proposition {
         Ok(self.deref_mut().tensorize(
             &mapping
                 .into_iter()
-                .map_while(|(s, i)| Some((PropSymbol::get_match(s)?, i)))
+                .map_while(|(s, i)| Some((PropSymbol::match_str(s)?, i)))
                 .collect::<HashMap<PropSymbol, usize>>(),
         )?)
     }

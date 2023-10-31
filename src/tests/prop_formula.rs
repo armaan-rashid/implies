@@ -7,12 +7,12 @@ use std::collections::{HashMap, HashSet};
 
 #[test]
 fn atomic_matching() -> Result<(), ParseError> {
-    if let Some(atom) = Atom::get_match("a") {
+    if let Some(atom) = Atom::match_str("a") {
         assert_eq!(atom, Atom(0));
         assert_eq!(Atom::match_prefix("a").unwrap(), (1, Atom(0)));
         // try to match on the symbol variant now
-        assert!(PropSymbol::get_match("a").is_some());
-        assert_eq!(Symbol::Atom(Atom(0)), PropSymbol::get_match("a").unwrap());
+        assert!(PropSymbol::match_str("a").is_some());
+        assert_eq!(Symbol::Atom(Atom(0)), PropSymbol::match_str("a").unwrap());
         assert_eq!(
             (1, Symbol::Atom(Atom(0))),
             PropSymbol::match_prefix("a").unwrap()

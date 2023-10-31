@@ -25,10 +25,21 @@ impl Display for PropUnary {
 impl Symbolic for PropUnary {}
 
 impl Match for PropUnary {
-    fn get_match(s: &str) -> Option<Self> {
+    fn match_str(s: &str) -> Option<Self> {
         match s {
             "¬" | "!" | "~" | "not" => Some(Self::Not),
             _ => None,
+        }
+    }
+
+    fn get_matches(&self) -> Vec<String> {
+        match self {
+            PropUnary::Not => vec![
+                "¬".to_string(),
+                "!".to_string(),
+                "~".to_string(),
+                "not".to_string(),
+            ],
         }
     }
 }
@@ -60,13 +71,22 @@ impl Display for PropBinary {
 impl Symbolic for PropBinary {}
 
 impl Match for PropBinary {
-    fn get_match(s: &str) -> Option<Self> {
+    fn match_str(s: &str) -> Option<Self> {
         match s {
             "<->" | "↔" | "iff" => Some(Self::Iff),
             "->" | "→" | "implies" => Some(Self::Implies),
             "\\/" | "∨" | "or" => Some(Self::Or),
             "/\\" | "∧" | "and" => Some(Self::And),
             _ => None,
+        }
+    }
+
+    fn get_matches(&self) -> Vec<String> {
+        match self {
+            PropBinary::Iff => vec!["<->".to_string(), "↔".to_string(), "iff".to_string()],
+            PropBinary::Implies => vec!["->".to_string(), "→".to_string(), "implies".to_string()],
+            PropBinary::Or => vec!["\\/".to_string(), "∨".to_string(), "or".to_string()],
+            PropBinary::And => vec!["/\\".to_string(), "∧".to_string(), "and".to_string()],
         }
     }
 }

@@ -3,12 +3,18 @@ use crate::symbol::{Symbol, Symbolic};
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
 
+/// A trait that, when implemented for a type T, implements a method that, given a string,
+/// outputs a matching element of T if applicable.
+/// Also, whitespace and strings starting with whitespace
+/// can never be a match, as starting whitespace is always ignored by the parser.
 pub trait Match: Sized {
-    /// A trait that, when implemented for a type T, implements a method that, given a string,
-    /// outputs a matching element of T if applicable.
-    /// Also, whitespace and strings starting with whitespace
-    /// can never be a match, as starting whitespace is always ignored by the parser.
-    fn get_match(s: &str) -> Option<Self>;
+    /// Given a string, return Self if the string matches
+    /// some element of Self.
+    fn match_str(s: &str) -> Option<Self>;
+
+    /// Given an element of Self, return the corresponding
+    /// strings as a vector.
+    fn get_matches(&self) -> Vec<String>;
 
     /// Match a prefix of a given string against the string matches. Uses the conventional
     /// max-munch principle: if the string is `"orange"` and `"o"` and `"or"` are both matches,
@@ -22,7 +28,7 @@ pub trait Match: Sized {
             last_char = i;
             Some((
                 last_char + char_width,
-                Self::get_match(&s[..last_char + char_width].trim_start())?,
+                Self::match_str(&s[..last_char + char_width].trim_start())?,
             ))
         })
     }

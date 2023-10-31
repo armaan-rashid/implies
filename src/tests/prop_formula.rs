@@ -380,19 +380,16 @@ fn to_tensor() -> Result<(), ParseError> {
     mapping.insert(Symbol::Atom(Atom(2)), 4);
     let mut formula = build_formula::<PropBinary, PropUnary, Atom>("a -> b -> c")?;
     let (nodes, edges) = formula.tensorize(&mapping)?;
-    assert_eq!(nodes, vec![2, 0, 3, 0, 4]);
-    assert_eq!(edges, vec![vec![0, 2], vec![0, 0], vec![0, 3], vec![0, 4]]);
+    assert_eq!(nodes, vec![0, 2, 0, 3, 4]);
+    assert_eq!(edges, vec![vec![0, 0, 2, 2], vec![1, 2, 3, 4]]);
     cascade! {&mut formula; ..unzip_right(); ..rotate_left(); ..top_zip()}
     let (nodes2, edges2) = formula.tensorize(&mapping)?;
-    assert_eq!(nodes2, vec![2, 0, 3, 0, 4]);
-    assert_eq!(edges2, vec![vec![0, 2], vec![0, 3], vec![0, 0], vec![0, 4]]);
+    assert_eq!(nodes2, vec![0, 0, 2, 3, 4]);
+    assert_eq!(edges2, vec![vec![0, 1, 1, 0], vec![1, 2, 3, 4]]);
     cascade! {&mut formula; ..unzip_right(); ..unify(PropUnary::Not); ..top_zip()}
     let (nodes3, edges3) = formula.tensorize(&mapping)?;
-    assert_eq!(nodes3, vec![2, 0, 3, 0, 1, 4]);
-    assert_eq!(
-        edges3,
-        vec![vec![0, 2], vec![0, 3], vec![0, 0], vec![0, 1], vec![1, 4]]
-    );
+    assert_eq!(nodes3, vec![0, 0, 2, 3, 1, 4]);
+    assert_eq!(edges3, vec![vec![0, 1, 1, 0, 4], vec![1, 2, 3, 4, 5]]);
     Ok(())
 }
 

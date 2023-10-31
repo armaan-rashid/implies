@@ -122,11 +122,11 @@ where
         func(self)?;
         Some(match &self {
             Tree::Binary { left, right, .. } => {
-                left.inorder_traverse(func);
-                right.inorder_traverse(func);
+                left.preorder_traverse(func);
+                right.preorder_traverse(func);
             }
             Tree::Unary { next, .. } => {
-                next.inorder_traverse(func);
+                next.preorder_traverse(func);
             }
             Tree::Atom(_) => {}
         })
@@ -628,11 +628,30 @@ where
         Some(())
     }
 
+    pub fn inorder_traverse<F: FnMut(&Tree<B, U, A>) -> Option<()>>(
+        &self,
+        func: &mut F,
+    ) -> Option<()> {
+        Some(self.tree.inorder_traverse(func)?)
+    }
+
+    pub fn preorder_traverse<F: FnMut(&Tree<B, U, A>) -> Option<()>>(
+        &self,
+        func: &mut F,
+    ) -> Option<()> {
+        Some(self.tree.preorder_traverse(func)?)
+    }
+
     /// Purely for the sake of nicer syntax, allows closures to be called method-style
     /// as part of method chaining.
-    pub fn apply_mut<F: FnMut(&mut Self) -> Option<()>>(&mut self, func: &mut F) -> Option<()> {
-        func(self)?;
-        Some(())
+    fn apply_mut<F: FnMut(&mut Self) -> Option<()>>(&mut self, func: &mut F) -> Option<()> {
+        Some(func(self)?)
+    }
+
+    /// Purely for the sake of nicer syntax, allows closures to be called method-style
+    /// as part of method chaining.
+    fn apply<F: FnMut(&Self) -> Option<()>>(&self, func: &mut F) -> Option<()> {
+        Some(func(self)?)
     }
 
     /// A function which demonstrates some zipper-y fun, if you're currently at the
@@ -875,34 +894,34 @@ where
     /// a formula as a list of integers corresponding to an inorder traversal of
     /// the nodes, and another list of the parent-child relationships between
     /// the nodes. If the mapping given is not total, return None.
-    /// The edges are returned in COO format (a list of node pairs).
+    /// The edges are returned in COO format (two lists of pairs,
+    /// corresponding by index).
     pub fn tensorize(
         &self,
         mapping: &HashMap<Symbol<B, U, A>, usize>,
     ) -> Result<(Vec<usize>, Vec<Vec<usize>>), ParseError> {
         let mut nodes: Vec<usize> = vec![];
-        let mut edges: Vec<Vec<usize>> = vec![];
-        self.tree
-            .inorder_traverse(&mut |node| {
-                let sym = Symbol::from_tree(&node);
-                let parent = *mapping.get(&sym)?;
-                nodes.push(parent);
-                match node {
-                    Tree::Binary { left, right, .. } => {
-                        let child1 = *mapping.get(&Symbol::from_tree(left.as_ref()))?;
-                        let child2 = *mapping.get(&Symbol::from_tree(right.as_ref()))?;
-                        edges.push(vec![parent, child1]);
-                        edges.push(vec![parent, child2]);
-                    }
-                    Tree::Unary { next, .. } => {
-                        let child1 = *mapping.get(&Symbol::from_tree(next.as_ref()))?;
-                        edges.push(vec![parent, child1])
-                    }
-                    Tree::Atom(_) => {}
-                }
-                Some(())
-            })
-            .ok_or(ParseError::IncompleteEnum)?;
+        let mut edges: Vec<Vec<usize>> = vec![vec![], vec![]];
+
+        let mut counter: usize = 0;
+        let mut stack: Vec<usize> = vec![];
+
+        self.preorder_traverse(&mut |node| {
+            nodes.push(mapping[&Symbol::from_tree(&node)]);
+            if let Some(idx) = stack.pop() {
+                edges[0].push(idx);
+                edges[1].push(counter);
+            }
+            if let Tree::Binary { .. } | Tree::Unary { .. } = node {
+                stack.push(counter)
+            }
+            if let Tree::Binary { .. } = node {
+                stack.push(counter)
+            }
+            Some(counter += 1)
+        })
+        .ok_or(ParseError::IncompleteEnum)?;
+
         Ok((nodes, edges))
     }
 

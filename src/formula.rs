@@ -334,12 +334,12 @@ where
 ///
 /// Finally, the API is designed for safety in the sense that transformations that are applied are only applied
 /// if they're valid at the current location in the formula and don't do anything otherwise! This is an opinionated
-/// design decision because this crate is designed for situations that demand lots of rapid transformation in specifically
+/// design decision because this crate is fundamentally designed for situations that demand lots of rapid transformation
 /// the circumstance when you want to apply a transformation if possible or not do anything, e.g. when converting a formula
-/// to conjunctive normal form. Returning [`Result<T, E>'] in this situation would inappropriately stop such fast transformation
+/// to conjunctive normal form. Returning [`Result<T, E>`] in this situation would inappropriately stop such fast transformation
 /// chains and require a lot of branching in code. Nonetheless a trait may be added and implemented for this type which
 /// reimplements the methods to allow one to immediately discern if a formula has changed after a method call because there's
-/// no signal something has either happened or failed to (e.g. as would be signaled by returning a Result<T,E> type).
+/// no signal something has either happened or failed to (e.g. as would be signaled by returning a `Result<T, E>` type).
 ///
 /// [`Result<T, E>`]: std::result::Result
 /// [`top_zip`]: Self::top_zip

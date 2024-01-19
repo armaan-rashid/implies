@@ -1,18 +1,7 @@
-# implies: a Pybound Rust crate for logical formulas
+//! A preimplemented specification of modal logic. Hopefully
+//! the brevity of this page shows just how easy it is to use
+//! `Formula` for your own logic.
 
-**implies** is a Rust crate for storing logical formulas as parse trees and performing complex operations on them,
-like substitution, rotation, conversion to conjunctive normal form, and more. Propositional logic comes pre-implemented, 
-but this crate operates on a generic struct `Formula<B,U,A>` which can easily be used with your own `B`inary and `U`nary
-operators and `Atom`ic formula types: if you can implement those types for your own preferred logic (modal, temporal, 
-predicate, etc...) you can use the full functionality of this crate for your own language. A lot more information is in
-the [docs](https://docs.rs/implies/0.2.1-alpha/implies) for this crate.
-
-There are Python bindings for propositional logic, but using the API in Python gives much less control and flexibility.
-You can use the Python APIs from Rust if you want by enabling the "python" feature when compiling, which will add "pyo3" as a dependency.
-
-Here is a simple example of implementing a basic modal logic with implies, so you can see how easily you can use implies for your own logical language:
-
-```rust
 use crate::formula::*;
 use crate::parser::Match;
 use crate::prop::*;
@@ -78,29 +67,3 @@ type ModalBinary = PropBinary;
 
 /// Just write a type alias and that's it, all of implies' functionality for free.
 type ModalFormula = Formula<ModalBinary, ModalUnary, Atom>;
-```
-
-Once you have a type like `ModalFormula` set up, you can just use all the provided methods
-in the Formula struct for free. To initialize a formula you can start with just an atom
-
-```rust
-let mut f = ModalFormula::new(Atom("p"))  // p
-```
-
-or use the cascade macro for builder syntax
-
-```rust
-let mut f = cascade! {
-  let f = ModalFormula::new(Atom("p"))   // p
-  ..unify(ModalUnary::Box)               // ◻p
-  ..left_combine(PropBinary::Implies, ModalFormula::new(Atom("q"))) // q -> ◻p
-}
-```
-
-or if your type implements `Match` just use a string!
-
-```rust
-use implies::parser::build_formula;
-
-let mut f: ModalFormula = build_formula("q -> ◻p")?;
-```

@@ -2,12 +2,13 @@ use super::formula::Formula;
 use super::parser::Match;
 pub use super::symbol::Atom;
 use super::symbol::{Symbol, Symbolic};
+use enum_iterator::Sequence;
 #[cfg(feature = "python")]
 use pyo3::pyclass;
 use std::fmt::Display;
 
 /// The negation operator, nothing super remarkable here.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default, Sequence)]
 #[cfg_attr(feature = "python", pyclass)]
 pub enum PropUnary {
     #[default]
@@ -47,7 +48,7 @@ impl Match for PropUnary {
 /// Deriving `PartialOrd` and `Ord` on this enum means that, by ordering the
 /// fields in increasing order of precedence, no other work has to be done
 /// to make sure the relative precedence of operators is understood.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
+#[derive(Sequence, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Hash, Default)]
 #[cfg_attr(feature = "python", pyclass)]
 pub enum PropBinary {
     Iff,

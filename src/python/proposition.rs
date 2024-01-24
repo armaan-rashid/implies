@@ -2,6 +2,7 @@ use crate::formula::{Formula, Tree, Zipper};
 use crate::parser::{build_formula, Match, ParseError, ParsedSymbols};
 use crate::prop::{PropBinary, PropFormula, PropSymbol, PropUnary};
 use crate::symbol::{Atom, Symbolic};
+use enum_iterator::*;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::PyErr;
@@ -57,6 +58,28 @@ impl PropBinary {
     fn try_match(s: &str) -> Option<Self> {
         Self::match_str(s)
     }
+
+    #[staticmethod]
+    /// How many of these operators there are!
+    fn size() -> usize {
+        enum_iterator::cardinality::<PropBinary>()
+    }
+
+    #[staticmethod]
+    /// Offer an indexing map for all operators.
+    fn counting(offset: usize) -> HashMap<PropBinary, usize> {
+        all::<PropBinary>()
+            .map(|s| (s, s as usize + offset))
+            .collect::<HashMap<PropBinary, usize>>()
+    }
+
+    #[staticmethod]
+    /// Offer an indexing map for the string repr of the operators.
+    fn str_counting(offset: usize) -> HashMap<String, usize> {
+        all::<PropBinary>()
+            .map(|s| (s.to_string(), s as usize + offset))
+            .collect::<HashMap<String, usize>>()
+    }
 }
 
 #[pymethods]
@@ -68,6 +91,27 @@ impl PropUnary {
     #[staticmethod]
     fn try_match(s: &str) -> Option<Self> {
         Self::match_str(s)
+    }
+    #[staticmethod]
+    /// How many of these operators there are!
+    fn size() -> usize {
+        enum_iterator::cardinality::<PropUnary>()
+    }
+
+    #[staticmethod]
+    /// Offer an indexing map for all operators.
+    fn counting(offset: usize) -> HashMap<PropUnary, usize> {
+        all::<PropUnary>()
+            .map(|s| (s, s as usize + offset))
+            .collect::<HashMap<PropUnary, usize>>()
+    }
+
+    #[staticmethod]
+    /// Offer an indexing map for the string repr of the operators.
+    fn str_counting(offset: usize) -> HashMap<String, usize> {
+        all::<PropUnary>()
+            .map(|s| (s.to_string(), s as usize + offset))
+            .collect::<HashMap<String, usize>>()
     }
 }
 

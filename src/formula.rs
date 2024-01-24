@@ -1,6 +1,7 @@
 use super::symbol::{Symbol, Symbolic};
 use crate::parser::ParseError;
 use cascade::cascade;
+use enum_iterator::*;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
@@ -357,12 +358,8 @@ where
     pub zipper: Zipper<B, U, A>,
 }
 
-impl<B, U, A> Formula<B, U, A>
-where
-    B: Symbolic,
-    U: Symbolic,
-    A: Symbolic,
-{
+/// This first impl block is for initialization and traversal.
+impl<B: Symbolic, U: Symbolic, A: Symbolic> Formula<B, U, A> {
     /// A new formula that's just an atom.
     pub fn new(atom: A) -> Self {
         Formula {
@@ -481,79 +478,6 @@ where
         }
     }
 
-    /// Connects to a new formula WITHOUT
-    /// unzipping, which is why this takes in a tree.
-    /// Whatever the current `.tree` is will become
-    /// the left subtree of a binary tree, where `new_tree`
-    /// is the right subtree and they're connected by `bin`.
-    /// This is a very zipper-style impl which might be counter
-    /// intuitive, and perhaps better illustrated with some
-    /// poor ASCII art:
-    ///
-    /// ```text
-    ///          zipper                 zipper: Zipper::Right(bin, new_tree, old_zipper)
-    ///                                
-    ///            ^        =>            /
-    ///            |                    /
-    ///                                
-    ///           tree               tree
-    /// ```
-    pub fn combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
-        self.zipper = Zipper::Right {
-            bin,
-            sub: new_tree,
-            zip: Box::new(std::mem::take(&mut self.zipper)),
-        };
-    }
-
-    /// Exactly the same as [`combine`] but the new subtree is inserted as
-    /// a left subtree, so you're now in the right subtree of a binary tree.
-    /// And therefore you end up with a [`Zipper::Left`].
-    ///
-    /// [`combine`]: Self::combine
-    /// [`Zipper::Left`]: Zipper::Left
-    pub fn left_combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
-        self.zipper = Zipper::Left {
-            bin,
-            sub: new_tree,
-            zip: Box::new(std::mem::take(&mut self.zipper)),
-        };
-    }
-
-    /// Combine two formulas with a binary connective.
-    /// But unzip first.
-    pub fn top_combine(&mut self, bin: B, mut formula: Self) {
-        formula.top_zip();
-        self.top_zip();
-        self.combine(bin, formula.tree);
-    }
-
-    /// [`top_combine`] but on the left side.
-    ///
-    /// [`top_combine`]: Self::top_combine
-    pub fn top_left_combine(&mut self, bin: B, mut formula: Self) {
-        formula.top_zip();
-        self.top_zip();
-        self.left_combine(bin, formula.tree)
-    }
-
-    /// Insert a unary operator in the formula's current position.
-    pub fn unify(&mut self, un: U) {
-        self.zipper = Zipper::Up {
-            un,
-            zip: Box::new(std::mem::take(&mut self.zipper)),
-        };
-    }
-
-    /// Insert a unary operator for the whole formula.
-    pub fn top_unify(&mut self, un: U) {
-        cascade! {
-            self;
-            ..top_zip();
-            ..unify(un)
-        }
-    }
-
     /// Inorder traversal starting at the current context.
     /// If you want the whole formula simply [`top_zip`] first.
     /// Takes in a closure which can mutate the formula in
@@ -652,6 +576,82 @@ where
     /// as part of method chaining.
     fn apply<F: FnMut(&Self) -> Option<()>>(&self, func: &mut F) -> Option<()> {
         Some(func(self)?)
+    }
+}
+
+/// This impl is about manipulating and combining formulas.
+impl<B: Symbolic, U: Symbolic, A: Symbolic> Formula<B, U, A> {
+    /// Connects to a new formula WITHOUT
+    /// unzipping, which is why this takes in a tree.
+    /// Whatever the current `.tree` is will become
+    /// the left subtree of a binary tree, where `new_tree`
+    /// is the right subtree and they're connected by `bin`.
+    /// This is a very zipper-style impl which might be counter
+    /// intuitive, and perhaps better illustrated with some
+    /// poor ASCII art:
+    ///
+    /// ```text
+    ///          zipper                 zipper: Zipper::Right(bin, new_tree, old_zipper)
+    ///                                
+    ///            ^        =>            /
+    ///            |                    /
+    ///                                
+    ///           tree               tree
+    /// ```
+    pub fn combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
+        self.zipper = Zipper::Right {
+            bin,
+            sub: new_tree,
+            zip: Box::new(std::mem::take(&mut self.zipper)),
+        };
+    }
+
+    /// Exactly the same as [`combine`] but the new subtree is inserted as
+    /// a left subtree, so you're now in the right subtree of a binary tree.
+    /// And therefore you end up with a [`Zipper::Left`].
+    ///
+    /// [`combine`]: Self::combine
+    /// [`Zipper::Left`]: Zipper::Left
+    pub fn left_combine(&mut self, bin: B, new_tree: Tree<B, U, A>) {
+        self.zipper = Zipper::Left {
+            bin,
+            sub: new_tree,
+            zip: Box::new(std::mem::take(&mut self.zipper)),
+        };
+    }
+
+    /// Combine two formulas with a binary connective.
+    /// But unzip first.
+    pub fn top_combine(&mut self, bin: B, mut formula: Self) {
+        formula.top_zip();
+        self.top_zip();
+        self.combine(bin, formula.tree);
+    }
+
+    /// [`top_combine`] but on the left side.
+    ///
+    /// [`top_combine`]: Self::top_combine
+    pub fn top_left_combine(&mut self, bin: B, mut formula: Self) {
+        formula.top_zip();
+        self.top_zip();
+        self.left_combine(bin, formula.tree)
+    }
+
+    /// Insert a unary operator in the formula's current position.
+    pub fn unify(&mut self, un: U) {
+        self.zipper = Zipper::Up {
+            un,
+            zip: Box::new(std::mem::take(&mut self.zipper)),
+        };
+    }
+
+    /// Insert a unary operator for the whole formula.
+    pub fn top_unify(&mut self, un: U) {
+        cascade! {
+            self;
+            ..top_zip();
+            ..unify(un)
+        }
     }
 
     /// A function which demonstrates some zipper-y fun, if you're currently at the
@@ -889,7 +889,10 @@ where
             }
         }
     }
+}
 
+/// This block is about interfacing with tensors.
+impl<B: Symbolic, U: Symbolic, A: Symbolic> Formula<B, U, A> {
     /// Given some arbitrary mapping from symbols to nonnegative integers, encode
     /// a formula as a list of integers corresponding to an inorder traversal of
     /// the nodes, and another list of the parent-child relationships between
@@ -950,6 +953,75 @@ where
             })
         })?;
         Some(formula)
+    }
+}
+
+// Special functions for enumerable operator types. Utilities for a rainy day.
+impl<B, U, A> Formula<B, U, A>
+where
+    B: Symbolic + Sequence,
+    U: Symbolic + Sequence,
+    A: Symbolic,
+{
+    /// Give the number of binary operators in this formula type.
+    fn num_binary() -> usize {
+        enum_iterator::cardinality::<B>()
+    }
+    /// Give the number of unary operators in this formula type.
+    fn num_unary() -> usize {
+        enum_iterator::cardinality::<U>()
+    }
+    /// Offer an indexing map for all unary operators.
+    fn unary_counting(offset: usize) -> HashMap<U, usize> {
+        let mut counter = offset..;
+        all::<U>()
+            .map(|s| (s, counter.next().unwrap()))
+            .collect::<HashMap<U, usize>>()
+    }
+
+    /// Offer an indexing map for the string repr of the unary operators.
+    fn unary_str_counting(offset: usize) -> HashMap<String, usize> {
+        let mut counter = offset..;
+        all::<U>()
+            .map(|s| (s.to_string(), counter.next().unwrap()))
+            .collect::<HashMap<String, usize>>()
+    }
+
+    /// Offer an indexing map for all binary operators.
+    fn binary_counting(offset: usize) -> HashMap<B, usize> {
+        let mut counter = offset..;
+        all::<B>()
+            .map(|s| (s, counter.next().unwrap()))
+            .collect::<HashMap<B, usize>>()
+    }
+
+    /// Offer an indexing map for the string repr of the binary operators.
+    fn binary_str_counting(offset: usize) -> HashMap<String, usize> {
+        let mut counter = offset..;
+        all::<B>()
+            .map(|s| (s.to_string(), counter.next().unwrap()))
+            .collect::<HashMap<String, usize>>()
+    }
+
+    /// Index all operators for the type, unary first, wrapped in the Symbol type.
+    fn operator_counting(offset: usize) -> HashMap<Symbol<B, U, A>, usize> {
+        Self::unary_counting(offset)
+            .into_iter()
+            .map(|(u, i)| (Symbol::Unary(u), i))
+            .chain(
+                Self::binary_counting(offset + cardinality::<U>())
+                    .into_iter()
+                    .map(|(b, i)| (Symbol::Binary(b), i)),
+            )
+            .collect::<HashMap<_, _>>()
+    }
+
+    /// Index all operators for the type, unary first, wrapped in the Symbol type.
+    fn operator_str_counting(offset: usize) -> HashMap<String, usize> {
+        Self::unary_str_counting(offset)
+            .into_iter()
+            .chain(Self::binary_str_counting(offset + cardinality::<U>()).into_iter())
+            .collect::<HashMap<_, _>>()
     }
 }
 

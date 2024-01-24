@@ -6,6 +6,7 @@ use crate::formula::*;
 use crate::parser::Match;
 use crate::prop::*;
 use crate::symbol::{Atom, Symbolic};
+use enum_iterator::Sequence;
 
 /// The usual unary operators for modal logic: negation,
 /// box and diamond. Most of the traits you need to get your
@@ -16,7 +17,7 @@ use crate::symbol::{Atom, Symbolic};
 /// want for your operators, so that deriving Ord freely gives you the
 /// precedence you expect. In the case of unary operators like these,
 /// it doesn't matter, but it's useful for binary operators.
-#[derive(PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Default, Hash)]
+#[derive(Sequence, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Default, Hash)]
 enum ModalUnary {
     Box,
     Diamond,

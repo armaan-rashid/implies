@@ -85,7 +85,7 @@ impl PropBinary {
     /// Offer an indexing map for the string repr of the operators.
     fn str_counting(offset: usize) -> HashMap<String, usize> {
         all::<PropBinary>()
-            .map(|s| (s.to_string(), s as usize + offset))
+            .map(|s| (s.to_string().trim(), s as usize + offset))
             .collect::<HashMap<String, usize>>()
     }
 }
@@ -124,7 +124,7 @@ impl PropUnary {
     /// Offer an indexing map for the string repr of the operators.
     fn str_counting(offset: usize) -> HashMap<String, usize> {
         all::<PropUnary>()
-            .map(|s| (s.to_string(), s as usize + offset))
+            .map(|s| (s.to_string().trim(), s as usize + offset))
             .collect::<HashMap<String, usize>>()
     }
 }

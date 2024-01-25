@@ -1,11 +1,11 @@
 [package]
 name = "implies"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 license = "MIT"
 description = "A parser for logical formulas"
 repository = "https://github.com/armaan-rashid/implies"
-documentation = "https://docs.rs/implies/0.4.1-alpha/implies/"
+documentation = "https://docs.rs/implies/0.4.2-alpha/implies/"
 readme = "README.md"
 keywords = ["logic", "binary_tree", "tree", "graph"]
 categories = ["data-structures", "mathematics"]

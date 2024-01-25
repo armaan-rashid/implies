@@ -1,12 +1,14 @@
 use crate::formula::{Formula, Tree, Zipper};
-use crate::parser::{build_formula, Match, ParseError, ParsedSymbols};
+use crate::parser::{build_formula, Match, ParseError};
 use crate::prop::{PropBinary, PropFormula, PropSymbol, PropUnary};
 use crate::symbol::{Atom, Symbolic};
 use enum_iterator::*;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::PyErr;
-use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 
 #[pymethods]
@@ -65,6 +67,12 @@ impl PropBinary {
         enum_iterator::cardinality::<PropBinary>()
     }
 
+    fn __hash__(&mut self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
+    }
+
     #[staticmethod]
     /// Offer an indexing map for all operators.
     fn counting(offset: usize) -> HashMap<PropBinary, usize> {
@@ -86,6 +94,12 @@ impl PropBinary {
 impl PropUnary {
     fn str_matches(&self) -> Vec<String> {
         self.get_matches()
+    }
+
+    fn __hash__(&mut self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.hash(&mut hasher);
+        hasher.finish()
     }
 
     #[staticmethod]

@@ -286,8 +286,8 @@ impl Proposition {
         self.deref().get_atoms()
     }
 
-    pub fn normalize(&self, indices: Vec<Atom>) -> Option<Self> {
-        Some(self.deref().normalize(indices.into_iter())?.into())
+    pub fn normalize(&self) -> Option<Self> {
+        Some(self.deref().normalize((0..).map(|i| Atom(i)))?.into())
     }
 
     pub fn __str__(&self) -> String {

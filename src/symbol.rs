@@ -9,7 +9,7 @@ use crate::parser::Match;
 use pyo3::prelude::*;
 use std::fmt::Display;
 use std::hash::Hash;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 /// marker trait to show a type implements appropriate traits to be a symbol in a formula
 pub trait Symbolic:
@@ -145,6 +145,12 @@ impl Deref for Atom {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for Atom {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

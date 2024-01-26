@@ -1,11 +1,11 @@
 [package]
 name = "implies"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2021"
 license = "MIT"
 description = "A parser for logical formulas"
 repository = "https://github.com/armaan-rashid/implies"
-documentation = "https://docs.rs/implies/0.4.4-alpha/implies/"
+documentation = "https://docs.rs/implies/0.4.5-alpha/implies/"
 readme = "README.md"
 keywords = ["logic", "binary_tree", "tree", "graph"]
 categories = ["data-structures", "mathematics"]
@@ -32,4 +32,4 @@ rustflags = [
 
 [features]
 python = ["pyo3", "pyo3/auto-initialize", "pyo3/extension-module", "pyo3-build-config"]
-# default = ["python"]
+default = ["python"]

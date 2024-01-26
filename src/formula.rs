@@ -949,7 +949,8 @@ impl<B: Symbolic, U: Symbolic, A: Symbolic> Formula<B, U, A> {
         let mut formula = self.clone();
         formula.inorder_traverse_mut(&mut |node| {
             Some(if let Tree::Atom(a) = node.tree {
-                node.tree = Tree::Atom(*seen.entry(a).or_insert(indices.next()?));
+                let replacement: &mut A = seen.entry(a).or_insert(indices.next()?);
+                node.tree = Tree::Atom(*replacement);
             })
         })?;
         Some(formula)

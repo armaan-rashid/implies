@@ -141,10 +141,10 @@ where
     }
     let (mut left, mut right, mut start) = (0 as usize, 0 as usize, outer);
     for s in &syms[outer..syms.len() - outer] {
-        if let Symbol::Left = s {
-            left += 1
-        } else if let Symbol::Right = s {
-            right += 1
+        match s {
+            Symbol::Left => left += 1,
+            Symbol::Right => right += 1,
+            _ => continue,
         }
         if right > left + outer {
             break; // unbalanced!

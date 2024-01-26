@@ -1,5 +1,7 @@
 use crate::formula::{Tree, Zipper};
-use crate::parser::{build_formula, build_tree, main_operator, Match, ParseError, ParsedSymbols};
+use crate::parser::{
+    build_formula, build_tree, main_operator, strip_parentheses, Match, ParseError, ParsedSymbols,
+};
 use crate::prop::{Atom, PropBinary, PropFormula, PropSymbol, PropUnary};
 use crate::symbol::Symbol;
 use cascade::cascade;
@@ -89,6 +91,28 @@ fn symbol_parse() -> Result<(), ParseError> {
 }
 
 #[test]
+/// Make sure excess parentheses are correctly stripped in the parsing pipeline.
+fn stripping_parens() -> Result<(), ParseError> {
+    let parsed: Vec<Symbol<PropBinary, PropUnary, Atom>> =
+        ParsedSymbols::<PropBinary, PropUnary, Atom>::from("((a) -> (b))").0?;
+    let syms: Vec<Symbol<PropBinary, PropUnary, Atom>> = vec![
+        Symbol::Left,
+        Symbol::Left,
+        Symbol::Atom(Atom(0)),
+        Symbol::Right,
+        Symbol::Binary(PropBinary::Implies),
+        Symbol::Left,
+        Symbol::Atom(Atom(1)),
+        Symbol::Right,
+        Symbol::Right,
+    ];
+    assert_eq!(parsed, syms);
+
+    assert_eq!(&syms[1..syms.len() - 1], strip_parentheses(&parsed)?);
+    Ok(())
+}
+
+#[test]
 fn parentheses_parse() -> Result<(), ParseError> {
     // try a bunch of weird but still correctly formed
     // strings w parens in em
@@ -107,6 +131,8 @@ fn parentheses_parse() -> Result<(), ParseError> {
             .is_err_and(|e| e == ParseError::NotAtomic("(".to_string()))
     );
     assert!(build_formula::<PropBinary, PropUnary, Atom>("a implies not").is_err());
+    assert!(build_formula::<PropBinary, PropUnary, Atom>("(p->q) -> (p->r)").is_ok());
+    assert!(build_formula::<PropBinary, PropUnary, Atom>("((p->q) -> (p->r))").is_ok());
     Ok(())
 }
 
